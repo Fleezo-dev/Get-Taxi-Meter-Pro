@@ -35,7 +35,7 @@ class SettingsRepository(private val context: Context) {
     }
 
     val isDarkMode: Flow<Boolean> = context.dataStore.data.map { preferences ->
-        preferences[KEY_IS_DARK_MODE] ?: true // Default to Dark Mode for high visibility & contrast
+        preferences[KEY_IS_DARK_MODE] ?: false // Default to Light Mode layout matching Taxi Meter Pro design
     }
 
     val ttsVoiceProfile: Flow<String> = context.dataStore.data.map { preferences ->

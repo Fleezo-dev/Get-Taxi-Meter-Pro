@@ -1242,65 +1242,6 @@ fun HomeMeterScreen(
                     .padding(vertical = 4.dp)
             )
 
-            // Backup Active Session Card
-            if (hasBackup && tripState.status == TripStatus.IDLE) {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    shape = RoundedCornerShape(20.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Restore,
-                            contentDescription = "Restore Active Session",
-                            tint = brandRed,
-                            modifier = Modifier.size(36.dp)
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Unfinished Ride Detected",
-                            color = brandRed,
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 16.sp
-                        )
-                        Text(
-                            text = "Your last tracking session was interrupted. Resume ride?",
-                            color = Color(0xFF616161),
-                            fontSize = 12.sp,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(vertical = 4.dp)
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Button(
-                                onClick = { viewModel.discardBackup() },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEEEEEE)),
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Text("Discard", color = Color(0xFF424242), fontWeight = FontWeight.Bold)
-                            }
-                            Button(
-                                onClick = { viewModel.recoverTrip() },
-                                colors = ButtonDefaults.buttonColors(containerColor = brandRed),
-                                modifier = Modifier.weight(1.5f),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Text("Resume Ride", color = Color.White, fontWeight = FontWeight.Black)
-                            }
-                        }
-                    }
-                }
-            }
-
             // GIGANTIC DARK BLUE / ALMOST BLACK FARE DISPLAY CARD
             Card(
                 colors = CardDefaults.cardColors(containerColor = MainFareCardDarkBlue),
@@ -1700,8 +1641,8 @@ fun HomeMeterScreen(
                                     showMasterOtpModal = true
                                 },
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color.White,
-                                    contentColor = brandRed
+                                    containerColor = brandRed,
+                                    contentColor = Color.White
                                 ),
                                 shape = RoundedCornerShape(32.dp),
                                 modifier = Modifier
@@ -1712,10 +1653,10 @@ fun HomeMeterScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.Center
                                 ) {
-                                    Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(28.dp), tint = brandRed)
+                                    Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(28.dp), tint = Color.White)
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = "START TAXI METER",
+                                        text = "START THE RIDE",
                                         fontSize = 17.sp,
                                         fontWeight = FontWeight.Black,
                                         letterSpacing = 1.5.sp
@@ -1743,7 +1684,7 @@ fun HomeMeterScreen(
                                     }
                                 },
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color.Black,
+                                    containerColor = brandRed,
                                     contentColor = Color.White
                                 ),
                                 shape = RoundedCornerShape(32.dp),
@@ -1757,7 +1698,7 @@ fun HomeMeterScreen(
                                 ) {
                                     Icon(Icons.Default.Stop, contentDescription = null, tint = Color.White, modifier = Modifier.size(28.dp))
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text("END TRIP", fontWeight = FontWeight.Black, fontSize = 17.sp, letterSpacing = 1.5.sp)
+                                    Text("COMPLETE THE TRIP", fontWeight = FontWeight.Black, fontSize = 17.sp, letterSpacing = 1.5.sp)
                                 }
                             }
                         }

@@ -60,9 +60,9 @@ class MeterViewModel(application: Application) : AndroidViewModel(application) {
 
     fun checkForActiveBackup() {
         viewModelScope.launch {
-            val backup = tripRepository.getActiveTrip()
-            _hasActiveSessionBackup.value = backup != null
-            Log.d("MeterViewModel", "Checked active session backup: ${backup != null}")
+            tripRepository.clearActiveTrip()
+            _hasActiveSessionBackup.value = false
+            Log.d("MeterViewModel", "Session backup check disabled per user spec")
         }
     }
 
