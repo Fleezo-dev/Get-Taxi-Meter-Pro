@@ -27,6 +27,11 @@ class SettingsRepository(private val context: Context) {
         val KEY_TTS_VOICE_PROFILE = stringPreferencesKey("tts_voice_profile")
         val KEY_TTS_SPEECH_RATE = floatPreferencesKey("tts_speech_rate")
         val KEY_TTS_PITCH = floatPreferencesKey("tts_pitch")
+        val KEY_FLOATING_BUBBLE_ENABLED = booleanPreferencesKey("floating_bubble_enabled")
+    }
+
+    val floatingBubbleEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[KEY_FLOATING_BUBBLE_ENABLED] ?: true // Default to true so minimized app shows bubble
     }
 
     val isDarkMode: Flow<Boolean> = context.dataStore.data.map { preferences ->
@@ -178,6 +183,12 @@ class SettingsRepository(private val context: Context) {
     suspend fun updateTtsPitch(value: Float) {
         context.dataStore.edit { preferences ->
             preferences[KEY_TTS_PITCH] = value
+        }
+    }
+
+    suspend fun updateFloatingBubbleEnabled(value: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[KEY_FLOATING_BUBBLE_ENABLED] = value
         }
     }
 }

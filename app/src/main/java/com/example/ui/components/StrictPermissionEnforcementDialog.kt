@@ -43,10 +43,11 @@ import androidx.lifecycle.LifecycleEventObserver
 data class SystemPermissionState(
     val isLocationGranted: Boolean = false,
     val isNotificationGranted: Boolean = false,
-    val isBatteryOptimizedIgnored: Boolean = false
+    val isBatteryOptimizedIgnored: Boolean = false,
+    val isOverlayGranted: Boolean = false
 ) {
     val allGranted: Boolean
-        get() = isLocationGranted && isNotificationGranted && isBatteryOptimizedIgnored
+        get() = isLocationGranted && isNotificationGranted && isBatteryOptimizedIgnored && isOverlayGranted
 }
 
 fun checkCurrentSystemPermissions(context: Context): SystemPermissionState {
@@ -71,10 +72,17 @@ fun checkCurrentSystemPermissions(context: Context): SystemPermissionState {
         true
     }
 
+    val overlayGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        Settings.canDrawOverlays(context)
+    } else {
+        true
+    }
+
     return SystemPermissionState(
         isLocationGranted = locationFine,
         isNotificationGranted = notifications,
-        isBatteryOptimizedIgnored = batteryIgnored
+        isBatteryOptimizedIgnored = batteryIgnored,
+        isOverlayGranted = overlayGranted
     )
 }
 
@@ -241,6 +249,22 @@ fun StrictPermissionEnforcementDialog(
                         },
                         onOpenSettings = {
                             requestIgnoreBatteryOptimizations(context)
+                        }
+                    )
+
+                    // 4. FLOATING BUBBLE OVERLAY CARD
+                    PermissionItemCard(
+                        title = "4. Floating Bubble Overlay (Anti-Sleep)",
+                        subtitle = "Keeps a live floating meter bubble on your home screen when minimized so tracking never sleeps.",
+                        isGranted = permState.isOverlayGranted,
+                        icon = Icons.Default.FlipToFront,
+                        buttonText = "GRANT OVERLAY",
+                        brandColor = brandRed,
+                        onAction = {
+                            requestOverlayPermission(context)
+                        },
+                        onOpenSettings = {
+                            requestOverlayPermission(context)
                         }
                     )
                 }
@@ -483,6 +507,22 @@ private fun requestIgnoreBatteryOptimizations(context: Context) {
             } catch (e2: Exception) {
                 openAppSettings(context)
             }
+        }
+    }
+}
+
+private fun requestOverlayPermission(context: Context) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        try {
+            val intent = Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:${context.packageName}")
+            ).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            openAppSettings(context)
         }
     }
 }

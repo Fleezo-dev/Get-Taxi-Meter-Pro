@@ -121,6 +121,22 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        // When app is in foreground, dismiss the floating bubble overlay
+        com.example.service.FloatingBubbleService.stop(this)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // When app is minimized / sent to home screen, show the floating bubble if enabled
+        val tripState = com.example.service.LocationTrackingService.tripState.value
+        val isBubbleEnabled = settingsViewModel.floatingBubbleEnabled.value
+        if (isBubbleEnabled && (tripState.status == com.example.data.model.TripStatus.RUNNING || tripState.status == com.example.data.model.TripStatus.PAUSED || tripState.autoStartEnabled)) {
+            com.example.service.FloatingBubbleService.start(this)
+        }
+    }
+
     private fun checkAndRequestSystemPermissions() {
         val permissionsNeeded = mutableListOf<String>()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {

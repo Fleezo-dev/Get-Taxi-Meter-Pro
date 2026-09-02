@@ -58,6 +58,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val ttsPitch: StateFlow<Float> = settingsRepository.ttsPitch
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 1.15f)
 
+    val floatingBubbleEnabled: StateFlow<Boolean> = settingsRepository.floatingBubbleEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
     fun updateBaseFare(value: Double) {
         viewModelScope.launch {
             settingsRepository.updateBaseFare(value)
@@ -147,6 +150,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun updateTtsPitch(value: Float) {
         viewModelScope.launch {
             settingsRepository.updateTtsPitch(value)
+        }
+    }
+
+    fun updateFloatingBubbleEnabled(value: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.updateFloatingBubbleEnabled(value)
         }
     }
 }

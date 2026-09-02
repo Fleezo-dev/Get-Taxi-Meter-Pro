@@ -62,6 +62,7 @@ fun SettingsScreen(
     val ttsVoiceProfileState by viewModel.ttsVoiceProfile.collectAsStateWithLifecycle()
     val ttsSpeechRateState by viewModel.ttsSpeechRate.collectAsStateWithLifecycle()
     val ttsPitchState by viewModel.ttsPitch.collectAsStateWithLifecycle()
+    val floatingBubbleEnabledState by viewModel.floatingBubbleEnabled.collectAsStateWithLifecycle()
 
     var baseFareInput by remember { mutableStateOf("") }
     var farePerKmInput by remember { mutableStateOf("") }
@@ -71,6 +72,7 @@ fun SettingsScreen(
     var outOfCitySurchargePercentInput by remember { mutableStateOf("") }
     var audioEnabled by remember { mutableStateOf(true) }
     var autoStartEnabled by remember { mutableStateOf(true) }
+    var floatingBubbleEnabled by remember { mutableStateOf(true) }
     var isDarkMode by remember { mutableStateOf(false) }
     var ttsVoiceProfile by remember { mutableStateOf("FEMALE_1") }
     var ttsSpeechRate by remember { mutableFloatStateOf(1.0f) }
@@ -92,7 +94,8 @@ fun SettingsScreen(
         isDarkModeState,
         ttsVoiceProfileState,
         ttsSpeechRateState,
-        ttsPitchState
+        ttsPitchState,
+        floatingBubbleEnabledState
     ) {
         baseFareInput = baseFareState.toString()
         farePerKmInput = farePerKmState.toString()
@@ -102,6 +105,7 @@ fun SettingsScreen(
         outOfCitySurchargePercentInput = outOfCitySurchargePercentState.toString()
         audioEnabled = audioEnabledState
         autoStartEnabled = autoStartEnabledState
+        floatingBubbleEnabled = floatingBubbleEnabledState
         isDarkMode = isDarkModeState
         ttsVoiceProfile = ttsVoiceProfileState
         ttsSpeechRate = ttsSpeechRateState
@@ -155,6 +159,7 @@ fun SettingsScreen(
                     viewModel.updateOutOfCitySurchargePercent(ooc)
                     viewModel.updateAudioEnabled(audioEnabled)
                     viewModel.updateAutoStartEnabled(autoStartEnabled)
+                    viewModel.updateFloatingBubbleEnabled(floatingBubbleEnabled)
                     viewModel.updateDarkMode(isDarkMode)
                     viewModel.updateTtsVoiceProfile(ttsVoiceProfile)
                     viewModel.updateTtsSpeechRate(ttsSpeechRate)
@@ -800,6 +805,70 @@ fun SettingsScreen(
                             uncheckedTrackColor = Color(0xFFCBD5E1)
                         ),
                         modifier = Modifier.testTag("toggle_autostart")
+                    )
+                }
+            }
+
+            // Floating Bubble Overlay Card
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(24.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+                modifier = Modifier.fillMaxWidth().testTag("floating_bubble_settings_card")
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(18.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Floating Home Screen Bubble",
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "ANTI-SLEEP",
+                                fontWeight = FontWeight.Black,
+                                fontSize = 9.sp,
+                                color = Color(0xFF10B981),
+                                modifier = Modifier
+                                    .background(Color(0xFFD1FAE5), RoundedCornerShape(4.dp))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                        Text(
+                            text = "Displays a floating live meter widget on your home screen when minimized so Android OS never sleeps or kills your meter tracking.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+
+                    Switch(
+                        checked = floatingBubbleEnabled,
+                        onCheckedChange = { isChecked ->
+                            floatingBubbleEnabled = isChecked
+                            if (isChecked && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M && !android.provider.Settings.canDrawOverlays(context)) {
+                                val intent = android.content.Intent(
+                                    android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                    android.net.Uri.parse("package:${context.packageName}")
+                                )
+                                context.startActivity(intent)
+                            }
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = TaxiRedPrimary,
+                            uncheckedThumbColor = Color.White,
+                            uncheckedTrackColor = Color(0xFFCBD5E1)
+                        ),
+                        modifier = Modifier.testTag("toggle_floating_bubble")
                     )
                 }
             }

@@ -560,6 +560,34 @@ fun HomeMeterScreen(
                         )
                     }
 
+                    // Floating Bubble Mini-Mode Quick Button
+                    IconButton(
+                        onClick = {
+                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M && !android.provider.Settings.canDrawOverlays(context)) {
+                                val intent = android.content.Intent(
+                                    android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                    android.net.Uri.parse("package:${context.packageName}")
+                                )
+                                context.startActivity(intent)
+                            } else {
+                                com.example.service.FloatingBubbleService.start(context)
+                                // Send app to home screen / background
+                                val homeIntent = android.content.Intent(android.content.Intent.ACTION_MAIN).apply {
+                                    addCategory(android.content.Intent.CATEGORY_HOME)
+                                    flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+                                }
+                                context.startActivity(homeIntent)
+                            }
+                        },
+                        modifier = Modifier.testTag("floating_bubble_quick_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FlipToFront,
+                            contentDescription = "Pop out Floating Bubble",
+                            tint = Color.White
+                        )
+                    }
+
                     // Admin Panel Button with Master Key Security Check
                     Button(
                         onClick = {
@@ -621,20 +649,6 @@ fun HomeMeterScreen(
                 .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            // ADMIN PIN MODAL DIALOG
-            if (showAdminAuthModal) {
-                AdminAuthPinModal(
-                    onDismiss = { showAdminAuthModal = false },
-                    onPinSuccess = {
-                        showAdminAuthModal = false
-                        showAdminPanelModal = true
-                    },
-                    onVerifyPin = { pin ->
-                        dispatchViewModel.verifyAdminPin(pin)
-                    }
-                )
-            }
-
             // SECURE SETTINGS ACCESS PIN DIALOG (PIN 2481)
             if (showSettingsPinModal) {
                 androidx.compose.ui.window.Dialog(
