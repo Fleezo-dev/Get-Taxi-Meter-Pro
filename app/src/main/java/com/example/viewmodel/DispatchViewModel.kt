@@ -16,6 +16,11 @@ enum class AppRole {
     DRIVER
 }
 
+enum class AdminRole {
+    MASTER_ADMIN,
+    REGULAR_ADMIN
+}
+
 class DispatchViewModel(application: Application) : AndroidViewModel(application) {
 
     private val profileRepository = DriverProfileRepository(application)
@@ -31,6 +36,21 @@ class DispatchViewModel(application: Application) : AndroidViewModel(application
 
     private val _isDispatcherAuthenticated = MutableStateFlow(false)
     val isDispatcherAuthenticated: StateFlow<Boolean> = _isDispatcherAuthenticated.asStateFlow()
+
+    private val _authenticatedAdminRole = MutableStateFlow(AdminRole.REGULAR_ADMIN)
+    val authenticatedAdminRole: StateFlow<AdminRole> = _authenticatedAdminRole.asStateFlow()
+
+    private val _authenticatedAdminName = MutableStateFlow("Master Admin")
+    val authenticatedAdminName: StateFlow<String> = _authenticatedAdminName.asStateFlow()
+
+    companion object {
+        val MASTER_ADMIN_PASSWORDS = setOf(
+            "2903",
+            "1005",
+            "1974",
+            "Master1974"
+        )
+    }
 
     init {
         viewModelScope.launch {
@@ -58,11 +78,30 @@ class DispatchViewModel(application: Application) : AndroidViewModel(application
 
     fun verifyAdminPin(enteredPin: String): Boolean {
         val pin = enteredPin.trim()
-        if (pin == _adminPin.value || ActivationSecurityManager.MASTER_PASSWORDS.contains(pin)) {
+        if (MASTER_ADMIN_PASSWORDS.contains(pin)) {
+            _authenticatedAdminRole.value = AdminRole.MASTER_ADMIN
+            _authenticatedAdminName.value = "Master Admin"
             _isDispatcherAuthenticated.value = true
             return true
         }
+
+        if (pin == _adminPin.value || ActivationSecurityManager.MASTER_PASSWORDS.contains(pin)) {
+            _authenticatedAdminRole.value = AdminRole.REGULAR_ADMIN
+            _authenticatedAdminName.value = "Regular Admin (${pin.takeLast(4)})"
+            _isDispatcherAuthenticated.value = true
+            return true
+        }
+
         return false
+    }
+
+    fun setAdminDetails(role: AdminRole, name: String) {
+        _authenticatedAdminRole.value = role
+        _authenticatedAdminName.value = name
+    }
+
+    fun logoutAdmin() {
+        _isDispatcherAuthenticated.value = false
     }
 
     fun updateDriverProfile(updatedProfile: DriverProfile) {

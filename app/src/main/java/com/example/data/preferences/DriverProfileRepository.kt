@@ -21,7 +21,9 @@ class DriverProfileRepository(private val context: Context) {
         val KEY_VEHICLE_TYPE = stringPreferencesKey("vehicle_type")
         val KEY_VEHICLE_MODEL = stringPreferencesKey("vehicle_model")
         val KEY_PHOTO_URI = stringPreferencesKey("photo_uri")
+        val KEY_QR_CODE_URI = stringPreferencesKey("qr_code_uri")
         val KEY_IS_ONLINE = booleanPreferencesKey("is_online")
+        val KEY_IS_ACTIVE = booleanPreferencesKey("is_active")
         val KEY_ADMIN_PIN = stringPreferencesKey("admin_pin")
         val KEY_FLEET_CODE = stringPreferencesKey("fleet_code")
         val KEY_PROFILE_COMPLETED = booleanPreferencesKey("profile_completed")
@@ -41,7 +43,9 @@ class DriverProfileRepository(private val context: Context) {
             vehicleType = prefs[KEY_VEHICLE_TYPE] ?: "Sedan",
             vehicleModel = prefs[KEY_VEHICLE_MODEL] ?: "Dzire",
             photoUri = prefs[KEY_PHOTO_URI] ?: "",
+            qrCodeUri = prefs[KEY_QR_CODE_URI] ?: "",
             isOnline = prefs[KEY_IS_ONLINE] ?: true,
+            isActive = prefs[KEY_IS_ACTIVE] ?: true,
             status = if (prefs[KEY_IS_ONLINE] != false) "AVAILABLE" else "OFFLINE",
             fleetNetworkCode = prefs[KEY_FLEET_CODE] ?: "GET-TAXI-NETWORK-1",
             isProfileCompleted = prefs[KEY_PROFILE_COMPLETED] ?: false,
@@ -99,7 +103,9 @@ class DriverProfileRepository(private val context: Context) {
             prefs[KEY_VEHICLE_TYPE] = updatedProfile.vehicleType
             prefs[KEY_VEHICLE_MODEL] = updatedProfile.vehicleModel
             prefs[KEY_PHOTO_URI] = updatedProfile.photoUri
+            prefs[KEY_QR_CODE_URI] = updatedProfile.qrCodeUri
             prefs[KEY_IS_ONLINE] = updatedProfile.isOnline
+            prefs[KEY_IS_ACTIVE] = updatedProfile.isActive
             prefs[KEY_FLEET_CODE] = updatedProfile.fleetNetworkCode
             prefs[KEY_PROFILE_COMPLETED] = updatedProfile.isProfileCompleted
             prefs[KEY_IS_ACTIVATED] = updatedProfile.isActivated
@@ -137,6 +143,7 @@ class DriverProfileRepository(private val context: Context) {
             prefs[KEY_VEHICLE_PLATE] = "TN-${(10..99).random()}AF-${(1000..9999).random()}"
             prefs[KEY_VEHICLE_MODEL] = "Sedan Taxi"
             prefs[KEY_IS_ONLINE] = true
+            prefs[KEY_IS_ACTIVE] = true
             prefs[KEY_FLEET_CODE] = "GET-TAXI-NETWORK-1"
         }
         return driverProfileFlow.first()

@@ -8,7 +8,9 @@ data class DriverProfile(
     val vehicleType: String = "Sedan",
     val vehicleModel: String = "Dzire",
     val photoUri: String = "",
+    val qrCodeUri: String = "", // Driver payment QR code stored locally offline
     val isOnline: Boolean = true,
+    val isActive: Boolean = true, // Account suspension state
     val status: String = "AVAILABLE", // "AVAILABLE", "ON_TRIP", "BUSY", "OFFLINE"
     val latitude: Double? = null,
     val longitude: Double? = null,

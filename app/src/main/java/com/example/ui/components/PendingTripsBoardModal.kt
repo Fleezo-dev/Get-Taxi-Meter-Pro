@@ -32,12 +32,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.example.data.model.DriverProfile
 import com.example.data.model.PendingTrip
 import com.example.viewmodel.PendingTripsViewModel
 
 @Composable
 fun PendingTripsBoardModal(
     pendingTripsViewModel: PendingTripsViewModel,
+    driverProfile: DriverProfile = DriverProfile(),
     onDismiss: () -> Unit,
     onClaimTripSuccess: (PendingTrip) -> Unit
 ) {
@@ -118,7 +120,7 @@ fun PendingTripsBoardModal(
                                     )
                                 }
                                 Text(
-                                    text = "Supabase Cloud Real-time Feed",
+                                    text = "Bash Cloud Real-time Feed",
                                     fontSize = 11.sp,
                                     color = Color(0xFF94A3B8)
                                 )
@@ -429,6 +431,7 @@ fun PendingTripsBoardModal(
                                 pendingTripsViewModel.claimTripWithOtp(
                                     trip = currentTrip,
                                     enteredOtp = otpInput,
+                                    driverProfile = driverProfile,
                                     onSuccess = { claimedTrip ->
                                         tripToClaim = null
                                         onDismiss()

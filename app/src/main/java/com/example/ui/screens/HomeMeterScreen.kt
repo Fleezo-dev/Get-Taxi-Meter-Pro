@@ -182,11 +182,21 @@ fun HomeMeterScreen(
         }
     }
 
+    // When a claimed trip ends, complete it on Supabase Live Cloud
+    LaunchedEffect(tripState.status) {
+        if (tripState.status == TripStatus.FINISHED && activeClaimedTrip != null && tripState.currentFare > 0.0) {
+            activeClaimedTrip?.id?.let { tripId ->
+                pendingTripsViewModel.completeClaimedTrip(tripId, tripState.currentFare)
+            }
+        }
+    }
+
     // ADMIN PANEL MODAL (SUPABASE LOAD TRIP & OFFLINE KEY GENERATOR)
     if (showAdminPanelModal) {
         AdminPanelModal(
             onDismiss = { showAdminPanelModal = false },
-            pendingTripsViewModel = pendingTripsViewModel
+            pendingTripsViewModel = pendingTripsViewModel,
+            dispatchViewModel = dispatchViewModel
         )
     }
 
@@ -194,6 +204,7 @@ fun HomeMeterScreen(
     if (showPendingTripsModal) {
         PendingTripsBoardModal(
             pendingTripsViewModel = pendingTripsViewModel,
+            driverProfile = driverProfile,
             onDismiss = { showPendingTripsModal = false },
             onClaimTripSuccess = { trip ->
                 activeClaimedTrip = trip
@@ -826,6 +837,44 @@ fun HomeMeterScreen(
                 }
             }
 
+            // DRIVER SUSPENSION ALERT BANNER
+            if (!driverProfile.isActive) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF2F2)),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.5.dp, Color(0xFFEF4444)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Block,
+                            contentDescription = "Suspended",
+                            tint = Color(0xFFDC2626),
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Column {
+                            Text(
+                                text = "DRIVER ACCOUNT SUSPENDED",
+                                fontWeight = FontWeight.Black,
+                                fontSize = 13.sp,
+                                color = Color(0xFFDC2626)
+                            )
+                            Text(
+                                text = "Your account is temporarily suspended by Master Admin. You cannot claim new dispatch trips.",
+                                fontSize = 11.sp,
+                                color = Color(0xFF7F1D1D)
+                            )
+                        }
+                    }
+                }
+            }
+
             // DUTY STATUS TOGGLE CARD
             Card(
                 colors = CardDefaults.cardColors(
@@ -984,7 +1033,7 @@ fun HomeMeterScreen(
                                     }
                                 }
                                 Text(
-                                    text = if (activeClaimedTrip != null) "Custom base & km rates loaded into meter" else if (pendingTripsList.isNotEmpty()) "${pendingTripsList.size} trip(s) available to claim" else "Supabase Live • No pending trips",
+                                    text = if (activeClaimedTrip != null) "Custom base & km rates loaded into meter" else if (pendingTripsList.isNotEmpty()) "${pendingTripsList.size} trip(s) available to claim" else "Bash Cloud Live • No pending trips",
                                     fontSize = 11.sp,
                                     color = if (activeClaimedTrip != null) Color(0xFF10B981) else Color.Gray,
                                     fontWeight = FontWeight.SemiBold
@@ -1485,10 +1534,12 @@ fun HomeMeterScreen(
                                 ) {
                                     OutlinedTextField(
                                         value = manualBaseFareInput,
-                                        onValueChange = { manualBaseFareInput = it },
-                                        label = { Text("Base Fare (${tripState.currency})", fontSize = 11.sp) },
+                                        onValueChange = { if (activeClaimedTrip == null) manualBaseFareInput = it },
+                                        readOnly = activeClaimedTrip != null,
+                                        label = { Text(if (activeClaimedTrip != null) "🔒 Locked Base (${tripState.currency})" else "Base Fare (${tripState.currency})", fontSize = 11.sp) },
                                         placeholder = { Text(String.format(Locale.US, "%.0f", tripState.baseFare), fontSize = 12.sp) },
                                         leadingIcon = { Icon(Icons.Default.MonetizationOn, contentDescription = null, tint = brandRed, modifier = Modifier.size(18.dp)) },
+                                        trailingIcon = { if (activeClaimedTrip != null) Icon(Icons.Default.Lock, contentDescription = "Locked by Dispatch", tint = brandRed) },
                                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                         singleLine = true,
                                         colors = tfColors,
@@ -1497,10 +1548,12 @@ fun HomeMeterScreen(
 
                                     OutlinedTextField(
                                         value = manualRatePerKmInput,
-                                        onValueChange = { manualRatePerKmInput = it },
-                                        label = { Text("Rate / KM (${tripState.currency})", fontSize = 11.sp) },
+                                        onValueChange = { if (activeClaimedTrip == null) manualRatePerKmInput = it },
+                                        readOnly = activeClaimedTrip != null,
+                                        label = { Text(if (activeClaimedTrip != null) "🔒 Locked Rate/KM (${tripState.currency})" else "Rate / KM (${tripState.currency})", fontSize = 11.sp) },
                                         placeholder = { Text(String.format(Locale.US, "%.0f", tripState.farePerKm), fontSize = 12.sp) },
                                         leadingIcon = { Icon(Icons.Default.Speed, contentDescription = null, tint = brandRed, modifier = Modifier.size(18.dp)) },
+                                        trailingIcon = { if (activeClaimedTrip != null) Icon(Icons.Default.Lock, contentDescription = "Locked by Dispatch", tint = brandRed) },
                                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                         singleLine = true,
                                         colors = tfColors,
@@ -1508,9 +1561,10 @@ fun HomeMeterScreen(
                                     )
                                 }
                                 Text(
-                                    text = "💡 Local Tariff: Default Base ${tripState.currency}${String.format(Locale.US, "%.0f", tripState.baseFare)}, Rate ${tripState.currency}${String.format(Locale.US, "%.0f", tripState.farePerKm)}/KM. Enter custom values to override.",
+                                    text = if (activeClaimedTrip != null) "🔒 Tariff strictly locked to Dispatch Trip (Base ₹${activeClaimedTrip?.baseFare} + Rate ₹${activeClaimedTrip?.perKmFare}/KM)." else "💡 Local Tariff: Default Base ${tripState.currency}${String.format(Locale.US, "%.0f", tripState.baseFare)}, Rate ${tripState.currency}${String.format(Locale.US, "%.0f", tripState.farePerKm)}/KM. Enter custom values to override.",
                                     fontSize = 10.sp,
-                                    color = Color.DarkGray,
+                                    color = if (activeClaimedTrip != null) brandRed else Color.DarkGray,
+                                    fontWeight = if (activeClaimedTrip != null) FontWeight.Bold else FontWeight.Normal,
                                     modifier = Modifier.padding(start = 2.dp)
                                 )
                             }

@@ -51,6 +51,7 @@ fun DriverProfileScreen(
     var vehicleType by remember(currentProfile) { mutableStateOf(currentProfile.vehicleType) }
     var vehicleModel by remember(currentProfile) { mutableStateOf(currentProfile.vehicleModel) }
     var photoUriStr by remember(currentProfile) { mutableStateOf(currentProfile.photoUri) }
+    var qrCodeUriStr by remember(currentProfile) { mutableStateOf(currentProfile.qrCodeUri) }
     var fleetCode by remember(currentProfile) { mutableStateOf(currentProfile.fleetNetworkCode) }
     var isOnline by remember(currentProfile) { mutableStateOf(currentProfile.isOnline) }
 
@@ -89,6 +90,36 @@ fun DriverProfileScreen(
         }
     }
 
+    val qrPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let { selectedUri ->
+            try {
+                val inputStream = context.contentResolver.openInputStream(selectedUri)
+                val originalBitmap = android.graphics.BitmapFactory.decodeStream(inputStream)
+                inputStream?.close()
+                if (originalBitmap != null) {
+                    val maxDim = 480
+                    val width = originalBitmap.width
+                    val height = originalBitmap.height
+                    val scale = Math.min(maxDim.toFloat() / width, maxDim.toFloat() / height)
+                    val targetW = if (scale < 1.0f) (width * scale).toInt().coerceAtLeast(1) else width
+                    val targetH = if (scale < 1.0f) (height * scale).toInt().coerceAtLeast(1) else height
+                    val resized = android.graphics.Bitmap.createScaledBitmap(originalBitmap, targetW, targetH, true)
+                    val baos = java.io.ByteArrayOutputStream()
+                    resized.compress(android.graphics.Bitmap.CompressFormat.PNG, 90, baos)
+                    val imageBytes = baos.toByteArray()
+                    val base64String = android.util.Base64.encodeToString(imageBytes, android.util.Base64.NO_WRAP)
+                    qrCodeUriStr = "data:image/png;base64,$base64String"
+                } else {
+                    qrCodeUriStr = selectedUri.toString()
+                }
+            } catch (e: Exception) {
+                qrCodeUriStr = selectedUri.toString()
+            }
+        }
+    }
+
     val redBrand = Color(0xFFC62828)
 
     // Standardized text field colors ensuring 100% dark text visibility
@@ -121,19 +152,20 @@ fun DriverProfileScreen(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = redBrand)
             )
         },
-        containerColor = Color(0xFF8A0000),
-        modifier = Modifier.imePadding()
-    ) { innerPadding ->
+        containerColor = Color(0xFFF4F6F9)
+    ) { paddingValues ->
         Column(
             modifier = Modifier
-                .padding(innerPadding)
                 .fillMaxSize()
-                .padding(16.dp)
+                .padding(paddingValues)
+                .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // DRIVER ID BADGE CARD
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // PROFILE PHOTO & ID HERO CARD
             Card(
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 shape = RoundedCornerShape(24.dp),
@@ -141,17 +173,19 @@ fun DriverProfileScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
-                    modifier = Modifier.padding(20.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Photo / Image Upload Selector (Gallery)
                     Box(
                         modifier = Modifier
-                            .size(110.dp)
+                            .size(100.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFFFFEBEE))
+                            .background(Color(0xFFEEEEEE))
                             .border(3.dp, redBrand, CircleShape)
-                            .clickable { photoPickerLauncher.launch("image/*") },
+                            .clickable { photoPickerLauncher.launch("image/*") }
+                            .testTag("driver_photo_container"),
                         contentAlignment = Alignment.Center
                     ) {
                         if (photoUriStr.isNotBlank()) {
@@ -169,97 +203,52 @@ fun DriverProfileScreen(
                             }
                             AsyncImage(
                                 model = imageModel,
-                                contentDescription = "Driver Profile Photo",
+                                contentDescription = "Driver Photo",
                                 contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clip(CircleShape)
+                                modifier = Modifier.fillMaxSize()
                             )
                         } else {
-                            Image(
-                                painter = painterResource(id = R.drawable.ic_get_taxi_vector),
-                                contentDescription = "Default Avatar",
-                                modifier = Modifier.size(70.dp)
-                            )
-                        }
-
-                        // Upload Icon Overlay
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.BottomEnd)
-                                .size(32.dp)
-                                .background(redBrand, CircleShape)
-                                .border(2.dp, Color.White, CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
                             Icon(
-                                imageVector = Icons.Default.FileUpload,
-                                contentDescription = "Upload Photo",
-                                tint = Color.White,
-                                modifier = Modifier.size(18.dp)
+                                imageVector = Icons.Default.AddAPhoto,
+                                contentDescription = "Add Photo",
+                                tint = Color.Gray,
+                                modifier = Modifier.size(36.dp)
                             )
                         }
                     }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Explicit Upload Button
-                    OutlinedButton(
-                        onClick = { photoPickerLauncher.launch("image/*") },
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = redBrand),
-                        border = BorderStroke(1.dp, redBrand),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.testTag("upload_profile_photo_button")
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.PhotoLibrary,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = if (photoUriStr.isBlank()) "UPLOAD PHOTO FROM GALLERY" else "CHANGE PHOTO FROM GALLERY",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    val isIdEditable = dispatchViewModel.isDriverIdEditable(currentProfile.driverId)
 
                     Text(
-                        text = if (isIdEditable) "DRIVER ASSIGNED ID (MASTER ADMIN EDITABLE: DRV001-DRV010)" else "PERMANENT LOCKED DRIVER ID (AUTO-INCREMENTED)",
+                        text = "Tap to upload profile photo",
                         fontSize = 11.sp,
-                        fontWeight = FontWeight.Black,
                         color = Color.Gray,
-                        letterSpacing = 1.2.sp
+                        modifier = Modifier.padding(top = 6.dp)
                     )
 
-                    if (isIdEditable) {
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Text(
+                        text = "SYSTEM ASSIGNED DRIVER ID",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF757575),
+                        letterSpacing = 1.sp
+                    )
+
+                    val isEditable = dispatchViewModel.isDriverIdEditable(currentProfile.driverId)
+
+                    if (isEditable) {
                         OutlinedTextField(
                             value = customDriverId,
                             onValueChange = { customDriverId = it },
-                            label = { Text("Driver ID (DRV001 - DRV010)") },
-                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = redBrand) },
+                            label = { Text("Custom Driver ID (1-10 Admin Override)") },
+                            leadingIcon = { Icon(Icons.Default.Badge, contentDescription = null, tint = redBrand) },
                             singleLine = true,
-                            shape = RoundedCornerShape(14.dp),
                             colors = textFieldColors,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(top = 6.dp)
                         )
-                        Text(
-                            text = "First 10 Driver IDs (DRV001-DRV010) are customizable by Master Admin.",
-                            fontSize = 11.sp,
-                            color = Color(0xFF616161),
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(top = 4.dp)
-                        )
                     } else {
-                        // Locked Driver ID Badge
                         Surface(
                             color = Color(0xFFFFD600),
                             shape = RoundedCornerShape(20.dp),
@@ -280,13 +269,6 @@ fun DriverProfileScreen(
                                 )
                             }
                         }
-                        Text(
-                            text = "Driver IDs from DRV011 onward are permanently locked on frontend and backend.",
-                            fontSize = 11.sp,
-                            color = Color(0xFF616161),
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(top = 6.dp)
-                        )
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -295,9 +277,7 @@ fun DriverProfileScreen(
 
                     OutlinedButton(
                         onClick = { showLogoutDialog = true },
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = Color(0xFFC62828)
-                        ),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFC62828)),
                         border = BorderStroke(1.5.dp, Color(0xFFC62828)),
                         shape = RoundedCornerShape(14.dp),
                         modifier = Modifier
@@ -322,10 +302,10 @@ fun DriverProfileScreen(
                         AlertDialog(
                             onDismissRequest = { showLogoutDialog = false },
                             icon = { Icon(Icons.Default.LockReset, contentDescription = null, tint = redBrand) },
-                            title = { Text("Log Out Old ID & Reset Driver Registration?", fontWeight = FontWeight.Bold) },
+                            title = { Text("Log Out Old ID & Reset Registration?", fontWeight = FontWeight.Bold) },
                             text = {
                                 Text(
-                                    "This will unregister your old ID (${currentProfile.driverId}) from this device and generate a brand new, system-locked sequential Driver ID for fresh onboarding.",
+                                    "This will unregister your old ID (${currentProfile.driverId}) from this device and generate a brand new sequential Driver ID for fresh onboarding.",
                                     fontSize = 13.sp
                                 )
                             },
@@ -355,6 +335,127 @@ fun DriverProfileScreen(
                                 }
                             }
                         )
+                    }
+                }
+            }
+
+            // OFFLINE PAYMENT QR CODE CARD
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                shape = RoundedCornerShape(24.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "OFFLINE DRIVER PAYMENT QR CODE",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Black,
+                                color = redBrand,
+                                letterSpacing = 1.sp
+                            )
+                            Text(
+                                text = "Stored 100% locally on device. Shown on customer trip receipts.",
+                                fontSize = 11.sp,
+                                color = Color.Gray
+                            )
+                        }
+
+                        Icon(
+                            imageVector = Icons.Default.QrCode2,
+                            contentDescription = "QR Code",
+                            tint = redBrand,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+
+                    HorizontalDivider(color = Color(0xFFEEEEEE))
+
+                    if (qrCodeUriStr.isNotBlank()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(160.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFFF8FAFC))
+                                .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(12.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            val qrModel = remember(qrCodeUriStr) {
+                                if (qrCodeUriStr.startsWith("data:image")) {
+                                    try {
+                                        val b64 = qrCodeUriStr.substringAfter(",")
+                                        android.util.Base64.decode(b64, android.util.Base64.DEFAULT)
+                                    } catch (e: Exception) {
+                                        qrCodeUriStr
+                                    }
+                                } else {
+                                    qrCodeUriStr
+                                }
+                            }
+                            AsyncImage(
+                                model = qrModel,
+                                contentDescription = "Payment QR Code",
+                                contentScale = ContentScale.Fit,
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .padding(8.dp)
+                            )
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = { qrPickerLauncher.launch("image/*") },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(Icons.Default.PhotoLibrary, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Change QR", fontSize = 12.sp)
+                            }
+
+                            Button(
+                                onClick = { qrCodeUriStr = "" },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Remove QR", fontSize = 12.sp)
+                            }
+                        }
+                    } else {
+                        Surface(
+                            color = Color(0xFFF1F5F9),
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, Color(0xFFCBD5E1)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { qrPickerLauncher.launch("image/*") }
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, tint = redBrand, modifier = Modifier.size(32.dp))
+                                Text("Upload UPI / Payment QR Code", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF1E293B))
+                                Text("Passengers can scan and pay directly via GPay / PhonePe / Paytm", fontSize = 11.sp, color = Color(0xFF64748B), textAlign = TextAlign.Center)
+                            }
+                        }
                     }
                 }
             }
@@ -588,24 +689,7 @@ fun DriverProfileScreen(
                                     uncheckedTrackColor = Color(0xFFD32F2F),
                                     uncheckedBorderColor = Color(0xFFB71C1C),
                                     uncheckedIconColor = Color(0xFFD32F2F)
-                                ),
-                                thumbContent = {
-                                    if (isOnline) {
-                                        Icon(
-                                            imageVector = Icons.Default.Check,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(SwitchDefaults.IconSize),
-                                            tint = Color(0xFF2E7D32)
-                                        )
-                                    } else {
-                                        Icon(
-                                            imageVector = Icons.Default.Close,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(SwitchDefaults.IconSize),
-                                            tint = Color(0xFFD32F2F)
-                                        )
-                                    }
-                                }
+                                )
                             )
                         }
                     }
@@ -623,6 +707,7 @@ fun DriverProfileScreen(
                                 vehicleType = vehicleType,
                                 vehicleModel = vehicleModel,
                                 photoUri = photoUriStr,
+                                qrCodeUri = qrCodeUriStr,
                                 isOnline = isOnline,
                                 status = if (isOnline) "AVAILABLE" else "OFFLINE",
                                 fleetNetworkCode = fleetCode,

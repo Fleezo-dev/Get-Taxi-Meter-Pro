@@ -4,6 +4,8 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.data.model.DriverProfile
+import com.example.data.model.DriverRemoteEntity
 import com.example.data.model.PendingTrip
 import com.example.data.repository.SupabaseTripsRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,8 +29,16 @@ class PendingTripsViewModel(application: Application) : AndroidViewModel(applica
     private val _adminTrips = MutableStateFlow<List<PendingTrip>>(emptyList())
     val adminTrips: StateFlow<List<PendingTrip>> = _adminTrips.asStateFlow()
 
+    private val _allDrivers = MutableStateFlow<List<DriverRemoteEntity>>(emptyList())
+    val allDrivers: StateFlow<List<DriverRemoteEntity>> = _allDrivers.asStateFlow()
+
+    private val _isSuspensionChecking = MutableStateFlow(false)
+    val isSuspensionChecking: StateFlow<Boolean> = _isSuspensionChecking.asStateFlow()
+
     init {
         refreshPendingTrips()
+        refreshAdminTrips()
+        refreshDrivers()
     }
 
     fun refreshPendingTrips() {
@@ -62,6 +72,50 @@ class PendingTripsViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
+    fun refreshDrivers() {
+        viewModelScope.launch {
+            repository.getAllDrivers()
+                .onSuccess { drivers ->
+                    _allDrivers.value = drivers
+                }
+                .onFailure { e ->
+                    Log.e("PendingTripsVM", "Failed to fetch drivers: ${e.message}")
+                }
+        }
+    }
+
+    fun toggleDriverSuspension(driverPhone: String, newActiveState: Boolean, onSuccess: () -> Unit = {}) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            repository.setDriverActiveStatus(driverPhone, newActiveState)
+                .onSuccess {
+                    _isLoading.value = false
+                    refreshDrivers()
+                    onSuccess()
+                }
+                .onFailure { e ->
+                    _isLoading.value = false
+                    Log.e("PendingTripsVM", "Failed to toggle suspension: ${e.message}")
+                }
+        }
+    }
+
+    fun registerOrUpdateDriver(profile: DriverProfile) {
+        if (profile.phoneNumber.isBlank()) return
+        viewModelScope.launch {
+            val entity = DriverRemoteEntity(
+                driverId = profile.driverId,
+                driverName = profile.driverName.ifBlank { "Driver ${profile.driverId}" },
+                driverPhone = profile.phoneNumber.trim(),
+                vehicleNumber = profile.vehiclePlate,
+                vehicleType = profile.vehicleType,
+                isActive = profile.isActive,
+                status = profile.status
+            )
+            repository.upsertDriver(entity)
+        }
+    }
+
     fun loadTripToSupabase(
         customerPhone: String,
         customerName: String?,
@@ -70,6 +124,7 @@ class PendingTripsViewModel(application: Application) : AndroidViewModel(applica
         tripOtp: String,
         baseFare: Double,
         perKmFare: Double,
+        createdBy: String = "Master Admin",
         onSuccess: () -> Unit,
         onError: (String) -> Unit
     ) {
@@ -96,6 +151,7 @@ class PendingTripsViewModel(application: Application) : AndroidViewModel(applica
                 tripOtp = tripOtp.trim(),
                 baseFare = baseFare,
                 perKmFare = perKmFare,
+                createdBy = createdBy,
                 status = "pending"
             )
 
@@ -116,6 +172,7 @@ class PendingTripsViewModel(application: Application) : AndroidViewModel(applica
     fun claimTripWithOtp(
         trip: PendingTrip,
         enteredOtp: String,
+        driverProfile: DriverProfile,
         onSuccess: (PendingTrip) -> Unit,
         onError: (String) -> Unit
     ) {
@@ -130,17 +187,52 @@ class PendingTripsViewModel(application: Application) : AndroidViewModel(applica
             return
         }
 
+        // Verify driver suspension / remote active status before claiming
         viewModelScope.launch {
             _isLoading.value = true
-            repository.claimTrip(tripId)
-                .onSuccess {
+            if (driverProfile.phoneNumber.isNotBlank()) {
+                val activeCheck = repository.checkDriverActiveStatus(driverProfile.phoneNumber)
+                if (activeCheck.isSuccess && activeCheck.getOrNull() == false) {
                     _isLoading.value = false
-                    refreshPendingTrips()
-                    onSuccess(trip.copy(status = "claimed"))
+                    onError("⛔ ACCOUNT SUSPENDED: Your driver account has been suspended by Master Admin. You cannot claim trips. Please contact dispatch.")
+                    return@launch
                 }
-                .onFailure { e ->
-                    _isLoading.value = false
-                    onError(e.message ?: "Failed to claim trip on Supabase")
+            }
+
+            repository.claimTrip(
+                tripId = tripId,
+                driverId = driverProfile.driverId,
+                driverName = driverProfile.driverName,
+                driverPhone = driverProfile.phoneNumber
+            ).onSuccess {
+                _isLoading.value = false
+                refreshPendingTrips()
+                refreshAdminTrips()
+                onSuccess(trip.copy(
+                    status = "claimed",
+                    claimedByDriverId = driverProfile.driverId,
+                    claimedByDriverName = driverProfile.driverName,
+                    claimedByDriverPhone = driverProfile.phoneNumber
+                ))
+            }.onFailure { e ->
+                _isLoading.value = false
+                onError(e.message ?: "Failed to claim trip on Supabase")
+            }
+        }
+    }
+
+    fun completeClaimedTrip(
+        tripId: Long,
+        finalFare: Double,
+        commissionRate: Double = 0.10, // 10% dispatcher commission
+        onSuccess: () -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            val commAmount = finalFare * commissionRate
+            repository.completeTrip(tripId, finalFare, commAmount)
+                .onSuccess {
+                    refreshAdminTrips()
+                    onSuccess()
                 }
         }
     }

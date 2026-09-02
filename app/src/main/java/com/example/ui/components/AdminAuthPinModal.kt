@@ -81,7 +81,7 @@ fun AdminAuthPinModal(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text(
-                    text = "DISPATCHER ADMIN LOGIN",
+                    text = "BASH CLOUD ADMIN LOGIN",
                     fontWeight = FontWeight.Black,
                     fontSize = 17.sp,
                     color = Color(0xFF1E1E1E),
@@ -89,7 +89,7 @@ fun AdminAuthPinModal(
                 )
 
                 Text(
-                    text = "Enter Admin Security Password / PIN to access Fleet Dispatcher Control Panel.",
+                    text = "Enter Master Admin PIN (2903 / 1005 / 1974) for full control, or Regular Admin PIN (2604 / 1404) for dispatch mode.",
                     fontSize = 12.sp,
                     color = Color(0xFF616161),
                     textAlign = TextAlign.Center,
@@ -104,7 +104,7 @@ fun AdminAuthPinModal(
                         pinText = it
                         isErrorVisible = false
                     },
-                    label = { Text("Admin Security PIN") },
+                    label = { Text("Enter Admin PIN / Password") },
                     leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
                     trailingIcon = {
                         IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
@@ -126,7 +126,7 @@ fun AdminAuthPinModal(
 
                 if (isErrorVisible) {
                     Text(
-                        text = "❌ Incorrect Admin Password!",
+                        text = "❌ Invalid Admin Password! Try 2903, 1005, or 2604.",
                         color = redBrand,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
@@ -165,7 +165,7 @@ fun AdminAuthPinModal(
                             .testTag("login_admin_button"),
                         shape = RoundedCornerShape(16.dp)
                     ) {
-                        Text("UNLOCK", color = Color.White, fontWeight = FontWeight.Black)
+                        Text("LOGIN", color = Color.White, fontWeight = FontWeight.Black)
                     }
                 }
             }

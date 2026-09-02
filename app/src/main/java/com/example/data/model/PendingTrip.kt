@@ -20,5 +20,19 @@ data class PendingTrip(
     val baseFare: Double,
     @SerialName("per_km_fare")
     val perKmFare: Double,
-    val status: String = "pending"
+    val status: String = "pending", // "pending", "claimed", "completed"
+    @SerialName("claimed_by_driver_id")
+    val claimedByDriverId: String? = null,
+    @SerialName("claimed_by_driver_name")
+    val claimedByDriverName: String? = null,
+    @SerialName("claimed_by_driver_phone")
+    val claimedByDriverPhone: String? = null,
+    @SerialName("created_by")
+    val createdBy: String? = "Master Admin",
+    @SerialName("final_fare")
+    val finalFare: Double? = 0.0,
+    @SerialName("commission_amount")
+    val commissionAmount: Double? = 0.0,
+    @SerialName("created_at")
+    val createdAt: String? = null
 )

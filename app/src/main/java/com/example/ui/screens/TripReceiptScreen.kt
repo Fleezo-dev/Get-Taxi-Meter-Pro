@@ -394,6 +394,97 @@ fun TripReceiptScreen(
                     }
                 }
 
+                // OFFLINE DRIVER PAYMENT QR CODE CARD
+                if (driverProfile.qrCodeUri.isNotBlank()) {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        shape = RoundedCornerShape(24.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, Color(0xFFF1F5F9), RoundedCornerShape(24.dp))
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(20.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column {
+                                    Text(
+                                        text = "SCAN & PAY DRIVER (UPI / QR)",
+                                        color = Color(0xFF0F172A),
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 14.sp
+                                    )
+                                    Text(
+                                        text = "Scan with GPay / PhonePe / Paytm to settle trip fare",
+                                        color = Color(0xFF64748B),
+                                        fontSize = 11.sp
+                                    )
+                                }
+
+                                Surface(
+                                    color = Color(0xFFE0F2FE),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Text(
+                                        text = "AMOUNT: $currencySymbol${String.format(Locale.US, "%.2f", trip.totalFare)}",
+                                        color = Color(0xFF0284C7),
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 11.sp,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            Box(
+                                modifier = Modifier
+                                    .size(200.dp)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(Color(0xFFF8FAFC))
+                                    .border(1.dp, Color(0xFFCBD5E1), RoundedCornerShape(16.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                val qrModel = remember(driverProfile.qrCodeUri) {
+                                    if (driverProfile.qrCodeUri.startsWith("data:image")) {
+                                        try {
+                                            val b64 = driverProfile.qrCodeUri.substringAfter(",")
+                                            android.util.Base64.decode(b64, android.util.Base64.DEFAULT)
+                                        } catch (e: Exception) {
+                                            driverProfile.qrCodeUri
+                                        }
+                                    } else {
+                                        driverProfile.qrCodeUri
+                                    }
+                                }
+                                AsyncImage(
+                                    model = qrModel,
+                                    contentDescription = "Driver UPI QR Code",
+                                    contentScale = ContentScale.Fit,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(10.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(
+                                text = "Direct Instant Settlement to Driver Account",
+                                color = Color(0xFF10B981),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+                }
+
                 // DIRECT WHATSAPP BILL SENDING CARD
                 Card(
                     colors = CardDefaults.cardColors(containerColor = Color.White),
