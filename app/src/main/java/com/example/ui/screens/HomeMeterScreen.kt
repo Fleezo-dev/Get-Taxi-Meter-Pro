@@ -2,8 +2,11 @@ package com.example.ui.screens
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -1042,15 +1045,42 @@ fun HomeMeterScreen(
                                     )
                                 }
 
-                                IconButton(
-                                    onClick = {
-                                        activeClaimedTrip = null
-                                        manualBaseFareInput = ""
-                                        manualRatePerKmInput = ""
-                                    },
-                                    modifier = Modifier.size(28.dp)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    Icon(Icons.Default.Close, contentDescription = "Clear", tint = Color.Gray, modifier = Modifier.size(16.dp))
+                                    Button(
+                                        onClick = {
+                                            try {
+                                                val cleanNum = trip.customerPhone.trim().replace(" ", "")
+                                                val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$cleanNum")).apply {
+                                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                                }
+                                                context.startActivity(dialIntent)
+                                            } catch (e: Exception) {
+                                                Toast.makeText(context, "Cannot open dialer: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+                                            }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+                                        shape = RoundedCornerShape(8.dp),
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                        modifier = Modifier.testTag("call_claimed_customer_button")
+                                    ) {
+                                        Icon(Icons.Default.Phone, contentDescription = "Call", tint = Color.White, modifier = Modifier.size(14.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("CALL", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                    }
+
+                                    IconButton(
+                                        onClick = {
+                                            activeClaimedTrip = null
+                                            manualBaseFareInput = ""
+                                            manualRatePerKmInput = ""
+                                        },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(Icons.Default.Close, contentDescription = "Clear", tint = Color.Gray, modifier = Modifier.size(16.dp))
+                                    }
                                 }
                             }
                         }

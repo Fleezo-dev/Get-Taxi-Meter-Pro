@@ -1,5 +1,8 @@
 package com.example.ui.components
 
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
@@ -309,14 +312,41 @@ fun PendingTripsBoardModal(
                     ) {
                         Column(
                             modifier = Modifier.padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Text(
-                                text = "Phone: ${currentTrip.customerPhone}",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
-                                color = Color.White
-                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Phone: ${currentTrip.customerPhone}",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        color = Color.White
+                                    )
+                                    if (!currentTrip.customerName.isNullOrBlank()) {
+                                        Text(
+                                            text = "Name: ${currentTrip.customerName}",
+                                            fontSize = 11.sp,
+                                            color = Color(0xFFCBD5E1)
+                                        )
+                                    }
+                                }
+
+                                Button(
+                                    onClick = { launchPhoneDialer(context, currentTrip.customerPhone) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                    modifier = Modifier.testTag("call_customer_otp_dialog")
+                                ) {
+                                    Icon(Icons.Default.Phone, contentDescription = "Call", tint = Color.White, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("CALL", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                }
+                            }
                             if (!currentTrip.pickupLocation.isNullOrBlank()) {
                                 Text(
                                     text = "Pickup: ${currentTrip.pickupLocation}",
@@ -527,13 +557,13 @@ private fun DriverPendingTripCard(
                 }
             }
 
-            // Fare details & Claim Button
+            // Fare details & Action Buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text("Pre-set Fare Rate", fontSize = 10.sp, color = Color(0xFF94A3B8))
                     Text(
                         text = "Base ₹${trip.baseFare} • ₹${trip.perKmFare}/KM",
@@ -543,23 +573,59 @@ private fun DriverPendingTripCard(
                     )
                 }
 
-                Button(
-                    onClick = onClaimClick,
-                    colors = ButtonDefaults.buttonColors(containerColor = brandColor),
-                    shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                    modifier = Modifier.testTag("claim_trip_button_${trip.id ?: 0}")
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.White)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "CLAIM (OTP)",
-                        fontWeight = FontWeight.Black,
-                        fontSize = 11.sp,
-                        color = Color.White
-                    )
+                    val context = LocalContext.current
+                    Button(
+                        onClick = { launchPhoneDialer(context, trip.customerPhone) },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                        modifier = Modifier.testTag("call_customer_button_${trip.id ?: 0}")
+                    ) {
+                        Icon(Icons.Default.Phone, contentDescription = "Call Customer", modifier = Modifier.size(14.dp), tint = Color.White)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "CALL",
+                            fontWeight = FontWeight.Black,
+                            fontSize = 11.sp,
+                            color = Color.White
+                        )
+                    }
+
+                    Button(
+                        onClick = onClaimClick,
+                        colors = ButtonDefaults.buttonColors(containerColor = brandColor),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                        modifier = Modifier.testTag("claim_trip_button_${trip.id ?: 0}")
+                    ) {
+                        Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.White)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "CLAIM (OTP)",
+                            fontWeight = FontWeight.Black,
+                            fontSize = 11.sp,
+                            color = Color.White
+                        )
+                    }
                 }
             }
         }
     }
 }
+
+private fun launchPhoneDialer(context: Context, phoneNumber: String) {
+    try {
+        val cleanNumber = phoneNumber.trim().replace(" ", "")
+        val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$cleanNumber")).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        context.startActivity(dialIntent)
+    } catch (e: Exception) {
+        Toast.makeText(context, "Could not open dialer: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+    }
+}
+
