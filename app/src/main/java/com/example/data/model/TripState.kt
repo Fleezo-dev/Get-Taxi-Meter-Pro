@@ -1,0 +1,49 @@
+package com.example.data.model
+
+enum class TripStatus {
+    IDLE,
+    RUNNING,
+    PAUSED,
+    FINISHED
+}
+
+data class TripState(
+    val status: TripStatus = TripStatus.IDLE,
+    val startTime: Long = 0L,
+    val durationSeconds: Long = 0L,
+    val waitingSeconds: Long = 0L,
+    val distanceKm: Double = 0.0,
+    val currentFare: Double = 0.0,
+    val speedKmH: Double = 0.0,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val baseFare: Double = 0.0,
+    val farePerKm: Double = 0.0,
+    val waitFarePerMin: Double = 0.0,
+    val currency: String = "",
+    val speedThreshold: Double = 5.0, // km/h below which waits accumulate
+    val isMoving: Boolean = false,
+    val isWaitingPaused: Boolean = false,
+    val autoStartEnabled: Boolean = false,
+    val isSimulationEnabled: Boolean = false,
+    val isOutOfCity: Boolean = false,
+    val outOfCitySurchargeType: String = "FIXED_AMOUNT", // "FIXED_AMOUNT" or "PERCENTAGE"
+    val outOfCitySurchargeFixedAmount: Double = 50.0,
+    val outOfCitySurchargePercent: Double = 25.0,
+    val outOfCitySurchargeAmount: Double = 0.0,
+    val pickupAddress: String = "",
+    val dropAddress: String = "",
+    val routePoints: List<Pair<Double, Double>> = emptyList(),
+    val rideType: String = "LOCAL_RIDE",
+    val ratePerHour: Double = 0.0,
+    val driverBeta: Double = 0.0,
+    val tollCharges: Double = 0.0,
+    val permitCharges: Double = 0.0,
+    val parkingCharges: Double = 0.0
+)
+
+fun calculateHourlyRentalBilledHours(totalMinutes: Double): Double {
+    val durationSeconds = (totalMinutes * 60).toLong()
+    return HourlyRentalFareEngine.calculateHourlyRentalFare(durationSeconds, 0.0).billedHours
+}
+

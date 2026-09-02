@@ -1,0 +1,8 @@
+{
+  "name": "Get Taxi",
+  "description": "A standalone, professional taxi meter application featuring offline activation security, real-time high-accuracy GPS tracking, waiting charges, speed gauge, crash recovery, local Room database history, and customized rate engines.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
