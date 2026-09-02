@@ -5,7 +5,9 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.model.DriverProfile
+import com.example.data.model.DriverRemoteEntity
 import com.example.data.preferences.DriverProfileRepository
+import com.example.data.repository.SupabaseTripsRepository
 import com.example.security.ActivationSecurityManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,6 +26,7 @@ enum class AdminRole {
 class DispatchViewModel(application: Application) : AndroidViewModel(application) {
 
     private val profileRepository = DriverProfileRepository(application)
+    private val supabaseRepository = SupabaseTripsRepository()
 
     private val _currentRole = MutableStateFlow(AppRole.DRIVER)
     val currentRole: StateFlow<AppRole> = _currentRole.asStateFlow()
@@ -114,6 +117,25 @@ class DispatchViewModel(application: Application) : AndroidViewModel(application
             }
             profileRepository.saveProfile(finalProfile)
             _driverProfile.value = finalProfile
+
+            val phone = finalProfile.phoneNumber.trim().ifBlank {
+                if (finalProfile.driverId.isNotBlank()) "ID-${finalProfile.driverId}" else ""
+            }
+            val name = finalProfile.driverName.ifBlank {
+                if (finalProfile.driverId.isNotBlank()) "Driver ${finalProfile.driverId}" else "Registered Driver"
+            }
+            if (phone.isNotBlank()) {
+                val entity = DriverRemoteEntity(
+                    driverId = finalProfile.driverId,
+                    driverName = name,
+                    driverPhone = phone,
+                    vehicleNumber = finalProfile.vehiclePlate.ifBlank { finalProfile.vehicleModel },
+                    vehicleType = finalProfile.vehicleType,
+                    isActive = finalProfile.isActive,
+                    status = if (finalProfile.isOnline) "AVAILABLE" else "OFFLINE"
+                )
+                supabaseRepository.upsertDriver(entity)
+            }
         }
     }
 

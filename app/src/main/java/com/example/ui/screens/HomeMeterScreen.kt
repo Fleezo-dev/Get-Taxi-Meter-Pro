@@ -184,10 +184,12 @@ fun HomeMeterScreen(
 
     // When a claimed trip ends, complete it on Supabase Live Cloud
     LaunchedEffect(tripState.status) {
-        if (tripState.status == TripStatus.FINISHED && activeClaimedTrip != null && tripState.currentFare > 0.0) {
+        if (tripState.status == TripStatus.FINISHED && activeClaimedTrip != null) {
+            val finalFareToSave = if (tripState.currentFare > 0.0) tripState.currentFare else tripState.baseFare
             activeClaimedTrip?.id?.let { tripId ->
-                pendingTripsViewModel.completeClaimedTrip(tripId, tripState.currentFare)
+                pendingTripsViewModel.completeClaimedTrip(tripId, finalFareToSave)
             }
+            activeClaimedTrip = null
         }
     }
 
@@ -1143,15 +1145,19 @@ fun HomeMeterScreen(
                                         Text("CALL", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                                     }
 
-                                    IconButton(
-                                        onClick = {
-                                            activeClaimedTrip = null
-                                            manualBaseFareInput = ""
-                                            manualRatePerKmInput = ""
-                                        },
-                                        modifier = Modifier.size(28.dp)
+                                    Surface(
+                                        color = Color(0xFF10B981).copy(alpha = 0.2f),
+                                        shape = RoundedCornerShape(8.dp),
+                                        border = BorderStroke(1.dp, Color(0xFF10B981))
                                     ) {
-                                        Icon(Icons.Default.Close, contentDescription = "Clear", tint = Color.Gray, modifier = Modifier.size(16.dp))
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(Icons.Default.Lock, contentDescription = "Locked Active Trip", tint = Color(0xFF10B981), modifier = Modifier.size(12.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("LOCKED", color = Color(0xFF10B981), fontWeight = FontWeight.Black, fontSize = 10.sp)
+                                        }
                                     }
                                 }
                             }
@@ -1721,7 +1727,11 @@ fun HomeMeterScreen(
                         TripStatus.RUNNING, TripStatus.PAUSED -> {
                             Button(
                                 onClick = {
-                                    dispatchViewModel.finishActiveTrip(tripState.currentFare)
+                                    val finalFareToSave = if (tripState.currentFare > 0.0) tripState.currentFare else tripState.baseFare
+                                    activeClaimedTrip?.id?.let { tripId ->
+                                        pendingTripsViewModel.completeClaimedTrip(tripId, finalFareToSave)
+                                    }
+                                    dispatchViewModel.finishActiveTrip(finalFareToSave)
                                     viewModel.stopTrip()
                                     if (driverProfile.isEmergencyOneTime) {
                                         dispatchViewModel.logoutEmergencyDriver()

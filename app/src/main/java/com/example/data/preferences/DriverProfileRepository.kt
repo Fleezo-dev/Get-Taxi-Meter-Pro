@@ -33,12 +33,30 @@ class DriverProfileRepository(private val context: Context) {
         val KEY_LOCAL_DRIVER_COUNTER = intPreferencesKey("local_driver_counter")
     }
 
+    private fun isGenericOrBlankId(id: String?): Boolean {
+        if (id.isNullOrBlank()) return true
+        val upper = id.uppercase().trim()
+        return upper == "DRV0011" || upper == "DRV-0011" || upper == "DRV0012" || upper == "DRV-0012" || upper == "DRV-104" || upper == "DRV104"
+    }
+
+    private fun generateUniqueDriverId(phoneNumber: String?): String {
+        val digits = phoneNumber?.filter { it.isDigit() } ?: ""
+        val suffix = if (digits.length >= 4) {
+            digits.takeLast(4)
+        } else {
+            "%04d".format((1000..9999).random())
+        }
+        return "DRV$suffix"
+    }
+
     val driverProfileFlow: Flow<DriverProfile> = context.driverDataStore.data.map { prefs ->
-        val existingId = prefs[KEY_DRIVER_ID] ?: ""
+        val phone = prefs[KEY_PHONE_NUMBER] ?: ""
+        val storedId = prefs[KEY_DRIVER_ID] ?: ""
+        val resolvedId = if (isGenericOrBlankId(storedId)) generateUniqueDriverId(phone) else storedId
         DriverProfile(
-            driverId = existingId.ifBlank { "DRV0011" },
+            driverId = resolvedId,
             driverName = prefs[KEY_DRIVER_NAME] ?: "",
-            phoneNumber = prefs[KEY_PHONE_NUMBER] ?: "",
+            phoneNumber = phone,
             vehiclePlate = prefs[KEY_VEHICLE_PLATE] ?: "TN-01-TX-1001",
             vehicleType = prefs[KEY_VEHICLE_TYPE] ?: "Sedan",
             vehicleModel = prefs[KEY_VEHICLE_MODEL] ?: "Dzire",
@@ -55,21 +73,12 @@ class DriverProfileRepository(private val context: Context) {
         )
     }
 
-    private suspend fun generateNextLocalDriverId(): String {
-        var nextCount = 11
-        context.driverDataStore.edit { prefs ->
-            val current = prefs[KEY_LOCAL_DRIVER_COUNTER] ?: 11
-            nextCount = current + 1
-            prefs[KEY_LOCAL_DRIVER_COUNTER] = nextCount
-        }
-        return "DRV%04d".format(nextCount)
-    }
-
     suspend fun ensureDriverIdAssigned(): DriverProfile {
         val prefs = context.driverDataStore.data.first()
         val existingId = prefs[KEY_DRIVER_ID]
-        if (existingId.isNullOrBlank() || existingId == "DRV-0011" || existingId == "DRV0011") {
-            val finalId = generateNextLocalDriverId()
+        val phone = prefs[KEY_PHONE_NUMBER]
+        if (isGenericOrBlankId(existingId)) {
+            val finalId = generateUniqueDriverId(phone)
             val defaultName = if (prefs[KEY_DRIVER_NAME].isNullOrBlank() || prefs[KEY_DRIVER_NAME]?.startsWith("Driver ") == true) {
                 "Driver ${finalId.takeLast(4)}"
             } else {
@@ -89,8 +98,8 @@ class DriverProfileRepository(private val context: Context) {
 
     suspend fun saveProfile(profile: DriverProfile) {
         var resolvedId = profile.driverId
-        if (resolvedId.isBlank() || resolvedId == "DRV-0011" || resolvedId == "DRV0011") {
-            resolvedId = generateNextLocalDriverId()
+        if (isGenericOrBlankId(resolvedId)) {
+            resolvedId = generateUniqueDriverId(profile.phoneNumber)
         }
 
         val updatedProfile = profile.copy(driverId = resolvedId)
@@ -134,12 +143,13 @@ class DriverProfileRepository(private val context: Context) {
 
     suspend fun resetAndRequestFreshDriverId(): DriverProfile {
         clearProfile()
-        val freshId = generateNextLocalDriverId()
+        val defaultPhone = "+91 9043743777"
+        val freshId = generateUniqueDriverId(defaultPhone)
         val defaultName = "Driver ${freshId.takeLast(4)}"
         context.driverDataStore.edit { prefs ->
             prefs[KEY_DRIVER_ID] = freshId
             prefs[KEY_DRIVER_NAME] = defaultName
-            prefs[KEY_PHONE_NUMBER] = "+91 9043743777"
+            prefs[KEY_PHONE_NUMBER] = defaultPhone
             prefs[KEY_VEHICLE_PLATE] = "TN-${(10..99).random()}AF-${(1000..9999).random()}"
             prefs[KEY_VEHICLE_MODEL] = "Sedan Taxi"
             prefs[KEY_IS_ONLINE] = true

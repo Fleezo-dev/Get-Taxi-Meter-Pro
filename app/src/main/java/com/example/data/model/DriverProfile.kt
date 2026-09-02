@@ -1,7 +1,7 @@
 package com.example.data.model
 
 data class DriverProfile(
-    val driverId: String = "DRV-104",
+    val driverId: String = "",
     val driverName: String = "",
     val phoneNumber: String = "",
     val vehiclePlate: String = "TN-01-TX-1001",

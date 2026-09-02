@@ -71,7 +71,7 @@ class MainActivity : ComponentActivity() {
             val driverProfile by dispatchViewModel.driverProfile.collectAsStateWithLifecycle()
             val isDarkMode by settingsViewModel.isDarkMode.collectAsStateWithLifecycle()
 
-            LaunchedEffect(driverProfile.driverName, driverProfile.phoneNumber, driverProfile.driverId) {
+            LaunchedEffect(driverProfile) {
                 if (driverProfile.driverName.isNotBlank() || driverProfile.phoneNumber.isNotBlank() || driverProfile.driverId.isNotBlank()) {
                     pendingTripsViewModel.registerOrUpdateDriver(driverProfile)
                 }

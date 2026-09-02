@@ -140,11 +140,12 @@ class SupabaseTripsRepository {
             }
             Result.success(Unit)
         } catch (e: Exception) {
-            Log.w("SupabaseTripsRepo", "Full complete update failed (${e.message}), attempting status-only fallback")
+            Log.w("SupabaseTripsRepo", "Full complete update failed (${e.message}), attempting partial fallback with final_fare")
             try {
                 client.from(tripsTable).update(
                     {
                         set("status", "completed")
+                        set("final_fare", finalFare)
                     }
                 ) {
                     filter {
@@ -153,8 +154,21 @@ class SupabaseTripsRepository {
                 }
                 Result.success(Unit)
             } catch (e2: Exception) {
-                Log.e("SupabaseTripsRepo", "Error completing trip $tripId: ${e2.message}", e2)
-                Result.failure(e2)
+                try {
+                    client.from(tripsTable).update(
+                        {
+                            set("status", "completed")
+                        }
+                    ) {
+                        filter {
+                            eq("id", tripId)
+                        }
+                    }
+                    Result.success(Unit)
+                } catch (e3: Exception) {
+                    Log.e("SupabaseTripsRepo", "Error completing trip $tripId: ${e3.message}", e3)
+                    Result.failure(e3)
+                }
             }
         }
     }

@@ -357,6 +357,16 @@ CREATE POLICY "Allow public full access to pending_trips" ON public.pending_trip
                                 trips = allTrips,
                                 onRefresh = { pendingTripsViewModel.refreshAdminTrips() },
                                 onTripClick = { selectedTripForDetail = it },
+                                onDeleteTrip = { trip ->
+                                    trip.id?.let { id ->
+                                        pendingTripsViewModel.deletePendingTrip(
+                                            tripId = id,
+                                            onSuccess = { Toast.makeText(context, "🗑️ Trip Deleted", Toast.LENGTH_SHORT).show() },
+                                            onError = { err -> Toast.makeText(context, "❌ Error: $err", Toast.LENGTH_SHORT).show() }
+                                        )
+                                    }
+                                },
+                                isMasterAdmin = isMasterAdmin,
                                 redBrand = redBrand
                             )
 
@@ -472,7 +482,16 @@ CREATE POLICY "Allow public full access to pending_trips" ON public.pending_trip
                                 trips = allTrips,
                                 onRefresh = { pendingTripsViewModel.refreshAdminTrips() },
                                 adminName = adminName,
-                                onTripClick = { selectedTripForDetail = it }
+                                onTripClick = { selectedTripForDetail = it },
+                                onDeleteTrip = { trip ->
+                                    if (trip.status == "pending" && trip.id != null) {
+                                        pendingTripsViewModel.deletePendingTrip(
+                                            tripId = trip.id,
+                                            onSuccess = { Toast.makeText(context, "🗑️ Pending Trip Deleted", Toast.LENGTH_SHORT).show() },
+                                            onError = { err -> Toast.makeText(context, "❌ Error: $err", Toast.LENGTH_SHORT).show() }
+                                        )
+                                    }
+                                }
                             )
                         }
                     }
@@ -488,7 +507,8 @@ CREATE POLICY "Allow public full access to pending_trips" ON public.pending_trip
             pendingTripsViewModel = pendingTripsViewModel,
             clipboardManager = clipboardManager,
             context = context,
-            redBrand = if (isMasterAdmin) redBrand else Color(0xFF2563EB)
+            redBrand = if (isMasterAdmin) redBrand else Color(0xFF2563EB),
+            isMasterAdmin = isMasterAdmin
         )
     }
 }
@@ -977,6 +997,8 @@ private fun DispatchedTripsHistoryTabContent(
     trips: List<PendingTrip>,
     onRefresh: () -> Unit,
     onTripClick: (PendingTrip) -> Unit,
+    onDeleteTrip: ((PendingTrip) -> Unit)? = null,
+    isMasterAdmin: Boolean = true,
     redBrand: Color
 ) {
     var searchQuery by remember { mutableStateOf("") }
@@ -1084,9 +1106,11 @@ private fun DispatchedTripsHistoryTabContent(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(filteredTrips, key = { it.id ?: (it.tripOtp + (it.customerPhone) + Random.nextInt()) }) { trip ->
+                    val showDelete = (trip.status == "pending") || isMasterAdmin
                     TripHistoryCardItem(
                         trip = trip,
-                        onClick = { onTripClick(trip) }
+                        onClick = { onTripClick(trip) },
+                        onDeleteClick = if (showDelete && onDeleteTrip != null) { { onDeleteTrip(trip) } } else null
                     )
                 }
             }
@@ -1097,7 +1121,8 @@ private fun DispatchedTripsHistoryTabContent(
 @Composable
 private fun TripHistoryCardItem(
     trip: PendingTrip,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onDeleteClick: (() -> Unit)? = null
 ) {
     Surface(
         color = Color(0xFF1E293B),
@@ -1107,7 +1132,8 @@ private fun TripHistoryCardItem(
             .fillMaxWidth()
             .clickable { onClick() }
     ) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            // Header Row: Customer & Status Badge
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1143,6 +1169,7 @@ private fun TripHistoryCardItem(
                 }
             }
 
+            // Security OTP & Tariff Info
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1177,41 +1204,105 @@ private fun TripHistoryCardItem(
                 )
             }
 
+            // Route Locations
             if (!trip.pickupLocation.isNullOrBlank() || !trip.dropLocation.isNullOrBlank()) {
                 Text(
-                    text = "${trip.pickupLocation ?: "Anywhere"} → ${trip.dropLocation ?: "Destination"}",
+                    text = "${trip.pickupLocation ?: "Pickup"} → ${trip.dropLocation ?: "Destination"}",
                     color = Color(0xFF94A3B8),
                     fontSize = 11.sp,
                     maxLines = 1
                 )
             }
 
+            // Driver & Fare Details Block
+            if (!trip.claimedByDriverName.isNullOrBlank() || !trip.claimedByDriverId.isNullOrBlank() || trip.status == "completed") {
+                Surface(
+                    color = Color(0xFF0F172A),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        if (!trip.claimedByDriverName.isNullOrBlank() || !trip.claimedByDriverId.isNullOrBlank()) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Driver: ${trip.claimedByDriverName ?: "Driver"} (${trip.claimedByDriverId ?: "N/A"})",
+                                    color = Color(0xFF60A5FA),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                if (!trip.claimedByDriverPhone.isNullOrBlank()) {
+                                    Text(
+                                        text = "Ph: ${trip.claimedByDriverPhone}",
+                                        color = Color(0xFFCBD5E1),
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+                        }
+
+                        if (trip.status == "completed") {
+                            val fFare = trip.finalFare ?: 0.0
+                            val comm = trip.commissionAmount ?: (fFare * 0.10)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Final Fare: ₹${String.format(Locale.US, "%.1f", fFare)}",
+                                    color = Color(0xFF34D399),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Black
+                                )
+                                Text(
+                                    text = "Commission (10%): ₹${String.format(Locale.US, "%.1f", comm)}",
+                                    color = Color(0xFFFBBF24),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Timing & Action Footer
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "By: ${trip.createdBy ?: "Admin"}",
+                    text = "By: ${trip.createdBy ?: "Admin"} • ${trip.createdAt?.take(16) ?: "Recent"}",
                     color = Color(0xFF64748B),
                     fontSize = 10.sp
                 )
 
-                if (!trip.claimedByDriverName.isNullOrBlank()) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    if (onDeleteClick != null && trip.id != null) {
+                        IconButton(
+                            onClick = onDeleteClick,
+                            modifier = Modifier.size(26.dp)
+                        ) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete Trip", tint = Color(0xFFEF4444), modifier = Modifier.size(16.dp))
+                        }
+                    }
+
                     Text(
-                        text = "Driver: ${trip.claimedByDriverName}",
-                        color = Color(0xFF60A5FA),
+                        text = "VIEW DETAILS ➔",
+                        color = Color(0xFF38BDF8),
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
-
-                Text(
-                    text = "VIEW & RECOVER OTP ➔",
-                    color = Color(0xFF38BDF8),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold
-                )
             }
         }
     }
@@ -1321,7 +1412,8 @@ private fun MyDispatchedTripsTabContent(
     trips: List<PendingTrip>,
     onRefresh: () -> Unit,
     adminName: String,
-    onTripClick: (PendingTrip) -> Unit
+    onTripClick: (PendingTrip) -> Unit,
+    onDeleteTrip: ((PendingTrip) -> Unit)? = null
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf("ALL") }
@@ -1421,9 +1513,11 @@ private fun MyDispatchedTripsTabContent(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(filteredTrips, key = { it.id ?: (it.tripOtp + (it.customerPhone) + Random.nextInt()) }) { trip ->
+                    val showDelete = (trip.status == "pending")
                     TripHistoryCardItem(
                         trip = trip,
-                        onClick = { onTripClick(trip) }
+                        onClick = { onTripClick(trip) },
+                        onDeleteClick = if (showDelete && onDeleteTrip != null) { { onDeleteTrip(trip) } } else null
                     )
                 }
             }
@@ -1441,7 +1535,8 @@ private fun TripDetailModal(
     pendingTripsViewModel: PendingTripsViewModel,
     clipboardManager: ClipboardManager,
     context: Context,
-    redBrand: Color
+    redBrand: Color,
+    isMasterAdmin: Boolean = true
 ) {
     var isDeleting by remember { mutableStateOf(false) }
 
@@ -1636,29 +1731,105 @@ private fun TripDetailModal(
                             Text("Rate: ₹${trip.perKmFare}/KM", fontSize = 12.sp, color = Color(0xFF38BDF8), fontWeight = FontWeight.Bold)
                         }
                         if (trip.status == "completed") {
-                            Text("Final Fare: ₹${trip.finalFare ?: 0.0} (Commission: ₹${trip.commissionAmount ?: 0.0})", fontSize = 12.sp, color = Color(0xFF34D399), fontWeight = FontWeight.Bold)
+                            val finalF = trip.finalFare ?: 0.0
+                            val commAmt = trip.commissionAmount ?: (finalF * 0.10)
+                            Text(
+                                text = "Final Collected Fare: ₹${String.format(Locale.US, "%.2f", finalF)}",
+                                fontSize = 12.sp,
+                                color = Color(0xFF34D399),
+                                fontWeight = FontWeight.Black
+                            )
+                            Text(
+                                text = "Commission (10%): ₹${String.format(Locale.US, "%.2f", commAmt)}",
+                                fontSize = 12.sp,
+                                color = Color(0xFFFBBF24),
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }
 
                 // Driver Claim Details
-                if (!trip.claimedByDriverName.isNullOrBlank() || !trip.claimedByDriverPhone.isNullOrBlank()) {
+                if (!trip.claimedByDriverName.isNullOrBlank() || !trip.claimedByDriverPhone.isNullOrBlank() || !trip.claimedByDriverId.isNullOrBlank()) {
                     Surface(
                         color = Color(0xFF0F172A),
                         shape = RoundedCornerShape(14.dp),
                         border = BorderStroke(1.dp, Color(0xFF2563EB)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column(
-                            modifier = Modifier.padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("CLAIMED DRIVER", fontSize = 10.sp, color = Color(0xFF60A5FA), fontWeight = FontWeight.Bold)
-                            Text("Name: ${trip.claimedByDriverName ?: "Driver"}", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                            Text("Phone: ${trip.claimedByDriverPhone ?: "N/A"}", color = Color(0xFFCBD5E1), fontSize = 12.sp)
-                            if (!trip.claimedByDriverId.isNullOrBlank()) {
-                                Text("Driver ID: ${trip.claimedByDriverId}", color = Color(0xFF94A3B8), fontSize = 11.sp)
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text("DRIVER AUDIT DETAILS", fontSize = 10.sp, color = Color(0xFF60A5FA), fontWeight = FontWeight.Bold)
+                                Text("Name: ${trip.claimedByDriverName ?: "Driver"}", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                if (!trip.claimedByDriverId.isNullOrBlank()) {
+                                    Text("Driver ID: ${trip.claimedByDriverId}", color = Color(0xFF38BDF8), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Text("Phone: ${trip.claimedByDriverPhone ?: "N/A"}", color = Color(0xFFCBD5E1), fontSize = 12.sp)
                             }
+
+                            if (!trip.claimedByDriverPhone.isNullOrBlank()) {
+                                Button(
+                                    onClick = { launchPhoneDialer(context, trip.claimedByDriverPhone) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB)),
+                                    shape = RoundedCornerShape(10.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                    modifier = Modifier.testTag("call_driver_detail_button")
+                                ) {
+                                    Icon(Icons.Default.Phone, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("CALL DRIVER", color = Color.White, fontWeight = FontWeight.Black, fontSize = 11.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Dispatched Timing Info
+                Surface(
+                    color = Color(0xFF0F172A),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text("TIMING & AUDIT STAMPS", fontSize = 10.sp, color = Color(0xFF94A3B8), fontWeight = FontWeight.Bold)
+                        Text(
+                            text = "🚀 Dispatched: ${trip.createdAt?.take(19)?.replace("T", " ") ?: "Recently"} (By: ${trip.createdBy ?: "Admin"})",
+                            fontSize = 11.sp,
+                            color = Color.White
+                        )
+                        if (trip.status == "completed") {
+                            Text(
+                                text = "🏁 Ride Completed & Logged: ${trip.createdAt?.take(19)?.replace("T", " ") ?: "Recorded"}",
+                                fontSize = 11.sp,
+                                color = Color(0xFF34D399),
+                                fontWeight = FontWeight.Bold
+                            )
+                        } else if (trip.status == "claimed") {
+                            Text(
+                                text = "⚡ Active Ride In Progress",
+                                fontSize = 11.sp,
+                                color = Color(0xFF60A5FA),
+                                fontWeight = FontWeight.Bold
+                            )
+                        } else {
+                            Text(
+                                text = "⏳ Pending Driver Claim via OTP",
+                                fontSize = 11.sp,
+                                color = Color(0xFFF59E0B),
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }
@@ -1678,16 +1849,17 @@ private fun TripDetailModal(
                         Text("Close")
                     }
 
-                    if (trip.status == "pending" && trip.id != null) {
+                    val canDelete = (trip.id != null) && (trip.status == "pending" || isMasterAdmin)
+                    if (canDelete) {
                         Button(
                             onClick = {
                                 isDeleting = true
                                 pendingTripsViewModel.deletePendingTrip(
-                                    tripId = trip.id,
+                                    tripId = trip.id!!,
                                     onSuccess = {
                                         isDeleting = false
                                         onDismiss()
-                                        Toast.makeText(context, "🗑️ Trip Deleted Successfully", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "🗑️ Record Deleted Successfully", Toast.LENGTH_SHORT).show()
                                     },
                                     onError = { err ->
                                         isDeleting = false
@@ -1705,7 +1877,12 @@ private fun TripDetailModal(
                             } else {
                                 Icon(Icons.Default.Delete, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("Delete", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                Text(
+                                    text = if (trip.status == "pending") "Delete Trip" else "Delete Record",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp
+                                )
                             }
                         }
                     }
