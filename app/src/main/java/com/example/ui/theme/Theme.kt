@@ -7,36 +7,36 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-private val RedAndWhiteColorScheme = lightColorScheme(
+private val LightColorScheme = lightColorScheme(
     primary = TaxiRedPrimary,
-    onPrimary = TaxiWhite,
-    primaryContainer = TaxiRedLight,
-    onPrimaryContainer = TaxiWhite,
-    secondary = TaxiRedDark,
-    onSecondary = TaxiWhite,
-    background = Color(0xFFC62828), // Red Background Canvas
-    onBackground = TaxiWhite,       // White Letters
-    surface = Color(0xFFB71C1C),    // Red Surface
-    onSurface = TaxiWhite,          // White Letters
-    surfaceVariant = Color(0xFFD32F2F),
-    onSurfaceVariant = TaxiWhite,
-    outline = Color(0xFFFFCDD2)
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFFFEBEE),
+    onPrimaryContainer = Color(0xFFB71C1C),
+    secondary = TaxiRedAccent,
+    onSecondary = Color.White,
+    background = LightBackground, // Light gray/off-white background
+    onBackground = LightTextPrimary,
+    surface = LightSurface,
+    onSurface = LightTextPrimary,
+    surfaceVariant = LightSurfaceVariant,
+    onSurfaceVariant = LightTextSecondary,
+    outline = LightBorder
 )
 
-private val DarkRedAndWhiteColorScheme = darkColorScheme(
-    primary = TaxiRedLight,
-    onPrimary = TaxiWhite,
-    primaryContainer = TaxiRedDark,
-    onPrimaryContainer = TaxiWhite,
-    secondary = TaxiRedPrimary,
-    onSecondary = TaxiWhite,
-    background = Color(0xFF1A0505),
-    onBackground = TaxiWhite,
-    surface = Color(0xFF2C0A0A),
-    onSurface = TaxiWhite,
-    surfaceVariant = Color(0xFF3E1010),
-    onSurfaceVariant = TaxiWhite,
-    outline = Color(0xFFE57373)
+private val DarkColorScheme = darkColorScheme(
+    primary = TaxiRedPrimary,
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFF7F1D1D),
+    onPrimaryContainer = Color(0xFFFEE2E2),
+    secondary = TaxiRedAccent,
+    onSecondary = Color.White,
+    background = DarkBackground, // Deep black/dark gray background
+    onBackground = DarkTextPrimary,
+    surface = DarkSurface,
+    onSurface = DarkTextPrimary,
+    surfaceVariant = DarkSurfaceVariant,
+    onSurfaceVariant = DarkTextSecondary,
+    outline = DarkBorder
 )
 
 @Composable
@@ -44,7 +44,7 @@ fun GetTaxiTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (darkTheme) DarkRedAndWhiteColorScheme else RedAndWhiteColorScheme
+    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
 
     MaterialTheme(
         colorScheme = colorScheme,
@@ -52,3 +52,4 @@ fun GetTaxiTheme(
         content = content
     )
 }
+

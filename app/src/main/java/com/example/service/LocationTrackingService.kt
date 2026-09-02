@@ -15,11 +15,13 @@ import com.example.data.database.TripDatabase
 import com.example.data.model.TripState
 import com.example.data.model.TripStatus
 import com.example.data.repository.TripRepository
+import com.example.util.TtsManager
 import com.google.android.gms.location.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import java.util.Locale
 
@@ -33,9 +35,6 @@ class LocationTrackingService : Service() {
     private var locationManager: android.location.LocationManager? = null
     private var locationListener: android.location.LocationListener? = null
     private var wakeLock: PowerManager.WakeLock? = null
-    
-    private var tts: TextToSpeech? = null
-    private var isTtsInitialized = false
 
     private lateinit var repository: TripRepository
     
@@ -221,14 +220,25 @@ class LocationTrackingService : Service() {
         val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
         wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "TaxiMeter::TrackingLock")
 
-        // Setup TTS
-        tts = TextToSpeech(this) { status ->
-            if (status == TextToSpeech.SUCCESS) {
-                tts?.language = Locale.getDefault()
-                isTtsInitialized = true
-                Log.d(TAG, "TTS Initialized successfully")
-            } else {
-                Log.e(TAG, "TTS Initialization failed")
+        // Setup TTS & observe settings
+        val ttsManager = TtsManager.getInstance(this)
+        serviceScope.launch {
+            val settings = com.example.data.preferences.SettingsRepository(applicationContext)
+            launch {
+                settings.audioEnabled.collect { enabled ->
+                    ttsManager.setAudioEnabled(enabled)
+                }
+            }
+            launch {
+                combine(
+                    settings.ttsVoiceProfile,
+                    settings.ttsPitch,
+                    settings.ttsSpeechRate
+                ) { profile, pitch, rate ->
+                    Triple(profile, pitch, rate)
+                }.collect { (profile, pitch, rate) ->
+                    ttsManager.applyVoiceSettings(profile, pitch, rate)
+                }
             }
         }
     }
@@ -350,8 +360,8 @@ class LocationTrackingService : Service() {
     }
 
     private fun announceVoice(message: String) {
-        if (isTtsInitialized && _tripState.value.status != TripStatus.IDLE) {
-            tts?.speak(message, TextToSpeech.QUEUE_FLUSH, null, null)
+        if (_tripState.value.status != TripStatus.IDLE) {
+            TtsManager.getInstance(this).speak(message)
         }
     }
 
@@ -434,7 +444,7 @@ class LocationTrackingService : Service() {
         startTrackingLocation()
         startTimers()
 
-        announceVoice("Ride started.")
+        TtsManager.getInstance(this).speakTripStart()
         
         saveSnapshotToDatabase()
     }
@@ -523,7 +533,7 @@ class LocationTrackingService : Service() {
                 dropAddress = dAddress
             )
             
-            announceVoice("Ride completed. Receipts ready. Total fare ${currentState.currency}${String.format(Locale.US, "%.2f", currentState.currentFare)}")
+            TtsManager.getInstance(this).speakTripEnd()
             
             // Clean trackers
             stopTrackingLocation()
@@ -979,10 +989,7 @@ class LocationTrackingService : Service() {
         stopTimers()
         releaseWakeLock()
         
-        tts?.let {
-            it.stop()
-            it.shutdown()
-        }
+        TtsManager.getInstance(this).shutdown()
 
         serviceJob.cancel()
     }

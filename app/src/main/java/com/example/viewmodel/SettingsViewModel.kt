@@ -46,6 +46,18 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val ilaiyaraajaRingtone: StateFlow<String> = settingsRepository.ilaiyaraajaRingtone
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "ACCORDION_GROOVE")
 
+    val isDarkMode: StateFlow<Boolean> = settingsRepository.isDarkMode
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    val ttsVoiceProfile: StateFlow<String> = settingsRepository.ttsVoiceProfile
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "FEMALE_1")
+
+    val ttsSpeechRate: StateFlow<Float> = settingsRepository.ttsSpeechRate
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 1.0f)
+
+    val ttsPitch: StateFlow<Float> = settingsRepository.ttsPitch
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 1.15f)
+
     fun updateBaseFare(value: Double) {
         viewModelScope.launch {
             settingsRepository.updateBaseFare(value)
@@ -109,6 +121,32 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun updateIlaiyaraajaRingtone(value: String) {
         viewModelScope.launch {
             settingsRepository.updateIlaiyaraajaRingtone(value)
+        }
+    }
+
+    fun updateIsDarkMode(value: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.updateIsDarkMode(value)
+        }
+    }
+
+    fun updateDarkMode(value: Boolean) = updateIsDarkMode(value)
+
+    fun updateTtsVoiceProfile(value: String) {
+        viewModelScope.launch {
+            settingsRepository.updateTtsVoiceProfile(value)
+        }
+    }
+
+    fun updateTtsSpeechRate(value: Float) {
+        viewModelScope.launch {
+            settingsRepository.updateTtsSpeechRate(value)
+        }
+    }
+
+    fun updateTtsPitch(value: Float) {
+        viewModelScope.launch {
+            settingsRepository.updateTtsPitch(value)
         }
     }
 }

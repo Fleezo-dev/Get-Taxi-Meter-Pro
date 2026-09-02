@@ -26,18 +26,21 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.ui.components.DriverRegistrationModal
+import com.example.ui.components.StrictPermissionEnforcementDialog
 import com.example.ui.components.UpdateDialog
 import com.example.updater.AppUpdater
 import com.example.ui.navigation.GetTaxiNavGraph
 import com.example.ui.theme.GetTaxiTheme
 import com.example.viewmodel.DispatchViewModel
 import com.example.viewmodel.MeterViewModel
+import com.example.viewmodel.PendingTripsViewModel
 import com.example.viewmodel.SettingsViewModel
 
 class MainActivity : ComponentActivity() {
     private val settingsViewModel: SettingsViewModel by viewModels()
     private val meterViewModel: MeterViewModel by viewModels()
     private val dispatchViewModel: DispatchViewModel by viewModels()
+    private val pendingTripsViewModel: PendingTripsViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -65,14 +68,19 @@ class MainActivity : ComponentActivity() {
         setContent {
             val updateInfo by AppUpdater.updateInfo.collectAsStateWithLifecycle()
             val driverProfile by dispatchViewModel.driverProfile.collectAsStateWithLifecycle()
+            val isDarkMode by settingsViewModel.isDarkMode.collectAsStateWithLifecycle()
 
-            GetTaxiTheme {
+            GetTaxiTheme(darkTheme = isDarkMode) {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     GetTaxiNavGraph(
                         meterViewModel = meterViewModel,
                         settingsViewModel = settingsViewModel,
-                        dispatchViewModel = dispatchViewModel
+                        dispatchViewModel = dispatchViewModel,
+                        pendingTripsViewModel = pendingTripsViewModel
                     )
+
+                    // Mandatory Strict System Permissions Enforcement (Location, Notifications, Unrestricted Battery)
+                    StrictPermissionEnforcementDialog()
 
                     // Mandatory Driver Registration & Device Activation Modal (Forced for ALL drivers if not activated)
                     if (!driverProfile.isActivated || !driverProfile.isProfileCompleted || driverProfile.driverName.isBlank() || driverProfile.phoneNumber.isBlank()) {

@@ -15,6 +15,7 @@ import com.example.ui.screens.TripReceiptScreen
 import com.example.ui.screens.TripSummaryScreen
 import com.example.viewmodel.DispatchViewModel
 import com.example.viewmodel.MeterViewModel
+import com.example.viewmodel.PendingTripsViewModel
 import com.example.viewmodel.SettingsViewModel
 
 @Composable
@@ -22,6 +23,7 @@ fun GetTaxiNavGraph(
     meterViewModel: MeterViewModel,
     settingsViewModel: SettingsViewModel,
     dispatchViewModel: DispatchViewModel,
+    pendingTripsViewModel: PendingTripsViewModel,
     navController: NavHostController = rememberNavController()
 ) {
     val currencySymbol by settingsViewModel.currency.collectAsStateWithLifecycle()
@@ -43,6 +45,7 @@ fun GetTaxiNavGraph(
                 viewModel = meterViewModel,
                 dispatchViewModel = dispatchViewModel,
                 settingsViewModel = settingsViewModel,
+                pendingTripsViewModel = pendingTripsViewModel,
                 onNavigateToSettings = { navController.navigate("settings") },
                 onNavigateToProfile = { navController.navigate("profile") },
                 onNavigateToReceipt = { tripId -> navController.navigate("receipt/$tripId") }

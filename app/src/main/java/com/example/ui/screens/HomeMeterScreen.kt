@@ -42,18 +42,23 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.R
+import com.example.ui.theme.*
 import com.example.data.database.TripEntity
 import com.example.data.model.DispatchOrder
+import com.example.data.model.PendingTrip
 import com.example.data.model.TripState
 import com.example.data.model.TripStatus
 import com.example.ui.components.AdminAuthPinModal
 import com.example.ui.components.AdminPanelModal
+import com.example.ui.components.PendingTripsBoardModal
 import com.example.ui.components.SpeedometerGauge
 import com.example.ui.components.TripMapView
 import com.example.viewmodel.AppRole
 import com.example.viewmodel.DispatchViewModel
 import com.example.viewmodel.MeterViewModel
+import com.example.viewmodel.PendingTripsViewModel
 import com.example.viewmodel.SettingsViewModel
 import coil.compose.AsyncImage
 import java.text.SimpleDateFormat
@@ -66,6 +71,7 @@ fun HomeMeterScreen(
     viewModel: MeterViewModel,
     dispatchViewModel: DispatchViewModel,
     settingsViewModel: SettingsViewModel? = null,
+    pendingTripsViewModel: PendingTripsViewModel = viewModel(),
     onNavigateToSettings: () -> Unit,
     onNavigateToProfile: () -> Unit,
     onNavigateToReceipt: (Int) -> Unit
@@ -79,6 +85,13 @@ fun HomeMeterScreen(
 
     val driverProfile by dispatchViewModel.driverProfile.collectAsStateWithLifecycle()
     val isDispatcherAuthenticated by dispatchViewModel.isDispatcherAuthenticated.collectAsStateWithLifecycle()
+
+    val pendingTripsList by pendingTripsViewModel.pendingTrips.collectAsStateWithLifecycle()
+    var showPendingTripsModal by remember { mutableStateOf(false) }
+    var activeClaimedTrip by remember { mutableStateOf<PendingTrip?>(null) }
+
+    var brandTapCount by remember { mutableIntStateOf(0) }
+    var lastBrandTapTime by remember { mutableLongStateOf(0L) }
 
     var showAdminAuthModal by remember { mutableStateOf(false) }
     var showAdminPanelModal by remember { mutableStateOf(false) }
@@ -166,10 +179,24 @@ fun HomeMeterScreen(
         }
     }
 
-    // ADMIN PANEL MODAL (OFFLINE KEY GENERATOR TOOL)
+    // ADMIN PANEL MODAL (SUPABASE LOAD TRIP & OFFLINE KEY GENERATOR)
     if (showAdminPanelModal) {
         AdminPanelModal(
-            onDismiss = { showAdminPanelModal = false }
+            onDismiss = { showAdminPanelModal = false },
+            pendingTripsViewModel = pendingTripsViewModel
+        )
+    }
+
+    // PENDING TRIPS DISPATCH BOARD MODAL (SUPABASE REALTIME FEED)
+    if (showPendingTripsModal) {
+        PendingTripsBoardModal(
+            pendingTripsViewModel = pendingTripsViewModel,
+            onDismiss = { showPendingTripsModal = false },
+            onClaimTripSuccess = { trip ->
+                activeClaimedTrip = trip
+                manualBaseFareInput = trip.baseFare.toString()
+                manualRatePerKmInput = trip.perKmFare.toString()
+            }
         )
     }
 
@@ -429,12 +456,30 @@ fun HomeMeterScreen(
                 title = {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.clickable { onNavigateToProfile() }
+                        modifier = Modifier.clickable {
+                            val now = System.currentTimeMillis()
+                            if (now - lastBrandTapTime > 2000L) {
+                                brandTapCount = 1
+                            } else {
+                                brandTapCount++
+                            }
+                            lastBrandTapTime = now
+                            if (brandTapCount >= 5) {
+                                brandTapCount = 0
+                                if (isDispatcherAuthenticated) {
+                                    showAdminPanelModal = true
+                                } else {
+                                    showAdminAuthModal = true
+                                }
+                            }
+                        }
                     ) {
                         Surface(
                             color = Color.White,
                             shape = CircleShape,
-                            modifier = Modifier.size(36.dp),
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clickable { onNavigateToProfile() },
                             border = BorderStroke(1.dp, Color.White.copy(alpha = 0.5f))
                         ) {
                             Box(contentAlignment = Alignment.Center) {
@@ -544,7 +589,7 @@ fun HomeMeterScreen(
                 )
             )
         },
-        containerColor = Color(0xFF8A0000) // Deep Red Brand Canvas
+        containerColor = MaterialTheme.colorScheme.background
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -692,9 +737,10 @@ fun HomeMeterScreen(
 
             // DRIVER ASSIGNED ID BANNER CARD
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(18.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 12.dp, bottom = 4.dp)
@@ -747,45 +793,31 @@ fun HomeMeterScreen(
                         }
 
                         Spacer(modifier = Modifier.width(10.dp))
-
-                        Surface(
-                            color = Color(0xFFFFD600),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Text(
-                                text = driverProfile.driverId,
-                                fontWeight = FontWeight.Black,
-                                fontSize = 14.sp,
-                                color = Color.Black,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
                                 text = driverProfile.driverName,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp,
-                                color = Color(0xFF1E1E1E)
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
                                 text = "Plate: ${driverProfile.vehiclePlate} • ${driverProfile.phoneNumber}",
                                 fontSize = 11.sp,
-                                color = Color.Gray
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
 
                     Surface(
-                        color = Color(0xFFFFEBEE),
-                        shape = RoundedCornerShape(10.dp)
+                        color = Color(0xFFFFD600),
+                        shape = RoundedCornerShape(12.dp)
                     ) {
                         Text(
-                            text = "PROFILE",
-                            color = brandRed,
-                            fontSize = 10.sp,
+                            text = driverProfile.driverId,
                             fontWeight = FontWeight.Black,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            fontSize = 13.sp,
+                            color = Color.Black,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                         )
                     }
                 }
@@ -884,6 +916,148 @@ fun HomeMeterScreen(
                 }
             }
 
+            // PENDING TRIPS DISPATCH BOARD CARD (SUPABASE CLOUD)
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(20.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+                border = BorderStroke(1.dp, if (activeClaimedTrip != null) Color(0xFF10B981) else brandRed.copy(alpha = 0.4f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 6.dp)
+                    .testTag("pending_trips_dispatch_card")
+            ) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(if (activeClaimedTrip != null) Color(0xFF10B981).copy(alpha = 0.2f) else brandRed.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = if (activeClaimedTrip != null) Icons.Default.CheckCircle else Icons.Default.CloudDownload,
+                                    contentDescription = null,
+                                    tint = if (activeClaimedTrip != null) Color(0xFF10B981) else brandRed,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Column {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = if (activeClaimedTrip != null) "CLAIMED TRIP ACTIVE" else "PENDING DISPATCH TRIPS",
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 12.sp,
+                                        letterSpacing = 0.5.sp,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    if (activeClaimedTrip == null && pendingTripsList.isNotEmpty()) {
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Surface(
+                                            color = brandRed,
+                                            shape = CircleShape
+                                        ) {
+                                            Text(
+                                                text = "${pendingTripsList.size}",
+                                                color = Color.White,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Black,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                                Text(
+                                    text = if (activeClaimedTrip != null) "Custom base & km rates loaded into meter" else if (pendingTripsList.isNotEmpty()) "${pendingTripsList.size} trip(s) available to claim" else "Supabase Live • No pending trips",
+                                    fontSize = 11.sp,
+                                    color = if (activeClaimedTrip != null) Color(0xFF10B981) else Color.Gray,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+
+                        Button(
+                            onClick = { showPendingTripsModal = true },
+                            colors = ButtonDefaults.buttonColors(containerColor = brandRed),
+                            shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            modifier = Modifier.testTag("open_pending_trips_button")
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = if (pendingTripsList.isNotEmpty()) "VIEW (${pendingTripsList.size})" else "VIEW BOARD",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = Color.White
+                                )
+                            }
+                        }
+                    }
+
+                    if (activeClaimedTrip != null) {
+                        val trip = activeClaimedTrip!!
+                        Surface(
+                            color = Color(0xFF10B981).copy(alpha = 0.1f),
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.3f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Customer: ${trip.customerPhone} ${trip.customerName?.let { "($it)" } ?: ""}",
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    if (!trip.pickupLocation.isNullOrBlank() || !trip.dropLocation.isNullOrBlank()) {
+                                        Text(
+                                            text = "${trip.pickupLocation ?: "Pickup"} ➔ ${trip.dropLocation ?: "Drop"}",
+                                            fontSize = 11.sp,
+                                            color = Color.Gray
+                                        )
+                                    }
+                                    Text(
+                                        text = "Tariff Loaded: Base ₹${trip.baseFare} | Rate ₹${trip.perKmFare}/KM",
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 11.sp,
+                                        color = brandRed
+                                    )
+                                }
+
+                                IconButton(
+                                    onClick = {
+                                        activeClaimedTrip = null
+                                        manualBaseFareInput = ""
+                                        manualRatePerKmInput = ""
+                                    },
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(Icons.Default.Close, contentDescription = "Clear", tint = Color.Gray, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // Status & GPS indicators
             Row(
                 modifier = Modifier
@@ -897,7 +1071,7 @@ fun HomeMeterScreen(
                         text = "GPS DIAGNOSTICS",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White.copy(alpha = 0.8f),
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
                         letterSpacing = 1.5.sp
                     )
                     Row(
@@ -915,7 +1089,7 @@ fun HomeMeterScreen(
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = if (tripState.latitude != null) "GPS Signal Active" else "Acquiring GPS...",
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onBackground,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -925,9 +1099,9 @@ fun HomeMeterScreen(
                 // Vacant / Hired badge
                 Surface(
                     color = when (tripState.status) {
-                        TripStatus.RUNNING -> Color.White
+                        TripStatus.RUNNING -> brandRed
                         TripStatus.PAUSED -> Color(0xFFFFD600)
-                        else -> Color.White.copy(alpha = 0.2f)
+                        else -> MaterialTheme.colorScheme.surfaceVariant
                     },
                     shape = RoundedCornerShape(24.dp)
                 ) {
@@ -938,9 +1112,9 @@ fun HomeMeterScreen(
                             else -> "VACANT / READY"
                         },
                         color = when (tripState.status) {
-                            TripStatus.RUNNING -> brandRed
+                            TripStatus.RUNNING -> Color.White
                             TripStatus.PAUSED -> Color.Black
-                            else -> Color.White
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant
                         },
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Black,
@@ -956,7 +1130,7 @@ fun HomeMeterScreen(
                     .fillMaxWidth()
                     .height(240.dp)
                     .clip(RoundedCornerShape(24.dp))
-                    .border(2.dp, Color.White, RoundedCornerShape(24.dp))
+                    .border(1.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(24.dp))
                     .padding(vertical = 4.dp)
             )
 
@@ -1019,11 +1193,12 @@ fun HomeMeterScreen(
                 }
             }
 
-            // GIGANTIC RED & WHITE FARE DISPLAY CARD
+            // GIGANTIC DARK BLUE / ALMOST BLACK FARE DISPLAY CARD
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = MainFareCardDarkBlue),
                 shape = RoundedCornerShape(32.dp),
                 elevation = CardDefaults.cardElevation(defaultElevation = 10.dp),
+                border = BorderStroke(1.5.dp, MainFareCardBorder),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 12.dp)
@@ -1054,7 +1229,7 @@ fun HomeMeterScreen(
                         Row(verticalAlignment = Alignment.Top) {
                             Text(
                                 text = String.format(Locale.US, "%.2f", tripState.currentFare),
-                                color = Color(0xFF1E1E1E),
+                                color = Color.White,
                                 fontSize = 68.sp,
                                 fontWeight = FontWeight.Black,
                                 modifier = Modifier.testTag("fare_text")
@@ -1081,7 +1256,8 @@ fun HomeMeterScreen(
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .background(Color(0xFFFFEBEE), RoundedCornerShape(20.dp))
+                                .background(MainFareCardSurface, RoundedCornerShape(20.dp))
+                                .border(1.dp, MainFareCardBorder, RoundedCornerShape(20.dp))
                                 .padding(12.dp),
                             contentAlignment = Alignment.Center
                         ) {
@@ -1091,7 +1267,7 @@ fun HomeMeterScreen(
                                 Row(verticalAlignment = Alignment.Bottom) {
                                     Text(
                                         text = String.format(Locale.US, "%.1f", tripState.distanceKm),
-                                        color = Color(0xFF1E1E1E),
+                                        color = Color.White,
                                         fontSize = 20.sp,
                                         fontWeight = FontWeight.Black
                                     )
@@ -1105,7 +1281,8 @@ fun HomeMeterScreen(
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .background(Color(0xFFFFEBEE), RoundedCornerShape(20.dp))
+                                .background(MainFareCardSurface, RoundedCornerShape(20.dp))
+                                .border(1.dp, MainFareCardBorder, RoundedCornerShape(20.dp))
                                 .padding(12.dp),
                             contentAlignment = Alignment.Center
                         ) {
@@ -1116,7 +1293,7 @@ fun HomeMeterScreen(
                                     val formattedWait = formatDuration(tripState.waitingSeconds).substring(3)
                                     Text(
                                         text = formattedWait,
-                                        color = Color(0xFF1E1E1E),
+                                        color = Color.White,
                                         fontSize = 20.sp,
                                         fontWeight = FontWeight.Black
                                     )
@@ -1130,9 +1307,9 @@ fun HomeMeterScreen(
                     // Extra Charges Trigger Card (Toll, Permit, Parking)
                     if (tripState.status == TripStatus.RUNNING || tripState.status == TripStatus.PAUSED) {
                         Surface(
-                            color = Color(0xFFFAFAFA),
+                            color = MainFareCardSurface,
                             shape = RoundedCornerShape(16.dp),
-                            border = BorderStroke(1.dp, Color(0xFFE0E0E0)),
+                            border = BorderStroke(1.dp, MainFareCardBorder),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(top = 16.dp)
@@ -1159,14 +1336,14 @@ fun HomeMeterScreen(
                                             text = "EXTRA CHARGES (Toll/Permit/Parking)",
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = Color.DarkGray
+                                            color = Color.White.copy(alpha = 0.9f)
                                         )
                                     }
                                     val totalExtra = tripState.tollCharges + tripState.permitCharges + tripState.parkingCharges
                                     Text(
                                         text = "Toll: ${tripState.currency}${tripState.tollCharges.toInt()} | Permit: ${tripState.currency}${tripState.permitCharges.toInt()} | Parking: ${tripState.currency}${tripState.parkingCharges.toInt()} (Total: ${tripState.currency}${totalExtra.toInt()})",
                                         fontSize = 11.sp,
-                                        color = if (totalExtra > 0.0) brandRed else Color.Gray,
+                                        color = if (totalExtra > 0.0) brandRed else Color.LightGray,
                                         fontWeight = if (totalExtra > 0.0) FontWeight.Bold else FontWeight.Normal,
                                         modifier = Modifier.padding(top = 2.dp)
                                     )
@@ -1187,9 +1364,10 @@ fun HomeMeterScreen(
             // TRIP CATEGORY SELECTOR FOR MANUAL METER
             if (tripState.status == TripStatus.IDLE || tripState.status == TripStatus.FINISHED) {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     shape = RoundedCornerShape(20.dp),
                     elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 6.dp)
@@ -1224,12 +1402,12 @@ fun HomeMeterScreen(
                                             text = label,
                                             fontWeight = if (isSelected) FontWeight.Black else FontWeight.Bold,
                                             fontSize = 12.sp,
-                                            color = if (isSelected) Color.White else Color.DarkGray
+                                            color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     },
                                     colors = FilterChipDefaults.filterChipColors(
                                         selectedContainerColor = brandRed,
-                                        containerColor = Color(0xFFF5F5F5)
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant
                                     ),
                                     shape = RoundedCornerShape(12.dp),
                                     modifier = Modifier.weight(1f)
@@ -1237,7 +1415,7 @@ fun HomeMeterScreen(
                             }
                         }
 
-                        HorizontalDivider(color = Color(0xFFEEEEEE), modifier = Modifier.padding(vertical = 4.dp))
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), modifier = Modifier.padding(vertical = 4.dp))
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -1248,23 +1426,25 @@ fun HomeMeterScreen(
                                 text = "CUSTOM TARIFF RATES",
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.Gray,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 letterSpacing = 0.8.sp
                             )
                             Text(
-                                text = "Editable",
+                                text = if (selectedManualRideType == "HOURLY_RENTAL") "Per Hour Billing" else if (selectedManualRideType == "OUTSTATION") "Return Surcharge Applied" else "Standard Fare",
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF2E7D32)
+                                color = brandRed
                             )
                         }
 
                         val tfColors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = brandRed,
-                            unfocusedBorderColor = Color(0xFFE0E0E0),
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
                             focusedLabelColor = brandRed,
-                            focusedTextColor = Color(0xFF1E1E1E),
-                            unfocusedTextColor = Color(0xFF1E1E1E)
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface
                         )
 
                         when (selectedManualRideType) {
@@ -1470,8 +1650,9 @@ fun HomeMeterScreen(
 
             // RIDE TIMINGS PANEL
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(24.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 8.dp)
@@ -1493,7 +1674,7 @@ fun HomeMeterScreen(
                         )
                         Text(
                             text = formatDuration(tripState.durationSeconds),
-                            color = Color(0xFF1E1E1E),
+                            color = MaterialTheme.colorScheme.onSurface,
                             fontSize = 24.sp,
                             fontWeight = FontWeight.Black,
                             fontFamily = FontFamily.Monospace
@@ -1530,18 +1711,18 @@ fun HomeMeterScreen(
             ) {
                 Text(
                     text = "RECENT COMPLETED TRIPS",
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onBackground,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Black,
                     letterSpacing = 2.0.sp
                 )
                 Surface(
-                    color = Color.White.copy(alpha = 0.2f),
+                    color = MaterialTheme.colorScheme.surfaceVariant,
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Text(
                         text = "ROOM LOCAL DB (${allTrips.size})",
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
@@ -1561,13 +1742,13 @@ fun HomeMeterScreen(
                         Icon(
                             imageVector = Icons.Default.Inbox,
                             contentDescription = "Empty",
-                            tint = Color.White.copy(alpha = 0.5f),
+                            tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
                             modifier = Modifier.size(48.dp)
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = "No recorded trips yet.",
-                            color = Color.White.copy(alpha = 0.8f),
+                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -1604,11 +1785,12 @@ fun HistoryTripRow(
 ) {
     val formatter = remember { SimpleDateFormat("MMM dd, yyyy - hh:mm a", Locale.getDefault()) }
     val formattedDate = formatter.format(Date(trip.startTime))
-    val brandRed = Color(0xFFC62828)
+    val brandRed = TaxiRedPrimary
 
     Card(
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(20.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onRowClick() }
@@ -1623,7 +1805,7 @@ fun HistoryTripRow(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = formattedDate,
-                    color = Color.Gray,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -1631,20 +1813,20 @@ fun HistoryTripRow(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = "${String.format(Locale.US, "%.1f", trip.distanceKm)} KM",
-                        color = Color(0xFF1E1E1E),
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Black
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "•",
-                        color = Color.Gray,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 14.sp
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "${trip.durationSeconds / 60}m ${trip.durationSeconds % 60}s",
-                        color = Color.Gray,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium
                     )
@@ -1667,7 +1849,7 @@ fun HistoryTripRow(
                     Icon(
                         imageVector = Icons.Default.Delete,
                         contentDescription = "Delete record",
-                        tint = Color.Gray,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp)
                     )
                 }

@@ -23,6 +23,26 @@ class SettingsRepository(private val context: Context) {
         val KEY_OUT_OF_CITY_SURCHARGE_FIXED_AMOUNT = doublePreferencesKey("out_of_city_surcharge_fixed_amount")
         val KEY_OUT_OF_CITY_SURCHARGE_PERCENT = doublePreferencesKey("out_of_city_surcharge_percent")
         val KEY_ILAIYARAAJA_RINGTONE = stringPreferencesKey("ilaiyaraaja_ringtone")
+        val KEY_IS_DARK_MODE = booleanPreferencesKey("is_dark_mode")
+        val KEY_TTS_VOICE_PROFILE = stringPreferencesKey("tts_voice_profile")
+        val KEY_TTS_SPEECH_RATE = floatPreferencesKey("tts_speech_rate")
+        val KEY_TTS_PITCH = floatPreferencesKey("tts_pitch")
+    }
+
+    val isDarkMode: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[KEY_IS_DARK_MODE] ?: true // Default to Dark Mode for high visibility & contrast
+    }
+
+    val ttsVoiceProfile: Flow<String> = context.dataStore.data.map { preferences ->
+        preferences[KEY_TTS_VOICE_PROFILE] ?: "FEMALE_1"
+    }
+
+    val ttsSpeechRate: Flow<Float> = context.dataStore.data.map { preferences ->
+        preferences[KEY_TTS_SPEECH_RATE] ?: 1.0f
+    }
+
+    val ttsPitch: Flow<Float> = context.dataStore.data.map { preferences ->
+        preferences[KEY_TTS_PITCH] ?: 1.15f
     }
 
     val ilaiyaraajaRingtone: Flow<String> = context.dataStore.data.map { preferences ->
@@ -134,6 +154,30 @@ class SettingsRepository(private val context: Context) {
     suspend fun updateIlaiyaraajaRingtone(value: String) {
         context.dataStore.edit { preferences ->
             preferences[KEY_ILAIYARAAJA_RINGTONE] = value
+        }
+    }
+
+    suspend fun updateIsDarkMode(value: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[KEY_IS_DARK_MODE] = value
+        }
+    }
+
+    suspend fun updateTtsVoiceProfile(value: String) {
+        context.dataStore.edit { preferences ->
+            preferences[KEY_TTS_VOICE_PROFILE] = value
+        }
+    }
+
+    suspend fun updateTtsSpeechRate(value: Float) {
+        context.dataStore.edit { preferences ->
+            preferences[KEY_TTS_SPEECH_RATE] = value
+        }
+    }
+
+    suspend fun updateTtsPitch(value: Float) {
+        context.dataStore.edit { preferences ->
+            preferences[KEY_TTS_PITCH] = value
         }
     }
 }
