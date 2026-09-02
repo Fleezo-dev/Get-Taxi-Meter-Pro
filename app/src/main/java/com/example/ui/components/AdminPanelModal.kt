@@ -62,6 +62,7 @@ fun AdminPanelModal(
     val isMasterAdmin = adminRole == AdminRole.MASTER_ADMIN
 
     var selectedTab by remember { mutableIntStateOf(0) }
+    var selectedTripForDetail by remember { mutableStateOf<PendingTrip?>(null) }
 
     // Load Trip Form States
     var custPhone by remember { mutableStateOf("") }
@@ -249,6 +250,7 @@ CREATE POLICY "Allow public full access to pending_trips" ON public.pending_trip
                         val tabs = if (isMasterAdmin) {
                             listOf(
                                 "📋 Load Trip",
+                                "📦 Trip History",
                                 "👥 Drivers",
                                 "📊 Commission",
                                 "🔐 Key Gen",
@@ -351,7 +353,14 @@ CREATE POLICY "Allow public full access to pending_trips" ON public.pending_trip
                                 redBrand = redBrand
                             )
 
-                            1 -> DriversManagementTabContent(
+                            1 -> DispatchedTripsHistoryTabContent(
+                                trips = allTrips,
+                                onRefresh = { pendingTripsViewModel.refreshAdminTrips() },
+                                onTripClick = { selectedTripForDetail = it },
+                                redBrand = redBrand
+                            )
+
+                            2 -> DriversManagementTabContent(
                                 drivers = allDrivers,
                                 isLoading = isSupabaseLoading,
                                 onRefresh = { pendingTripsViewModel.refreshDrivers() },
@@ -363,13 +372,14 @@ CREATE POLICY "Allow public full access to pending_trips" ON public.pending_trip
                                 redBrand = redBrand
                             )
 
-                            2 -> CommissionTabContent(
+                            3 -> CommissionTabContent(
                                 trips = allTrips,
                                 onRefresh = { pendingTripsViewModel.refreshAdminTrips() },
+                                onTripClick = { selectedTripForDetail = it },
                                 redBrand = redBrand
                             )
 
-                            3 -> KeyGenTabContent(
+                            4 -> KeyGenTabContent(
                                 currentDeviceId = currentDeviceId,
                                 inputDeviceId = inputDeviceId,
                                 onInputDeviceIdChange = { inputDeviceId = it },
@@ -398,7 +408,7 @@ CREATE POLICY "Allow public full access to pending_trips" ON public.pending_trip
                                 redBrand = redBrand
                             )
 
-                            4 -> SqlSchemaTabContent(
+                            5 -> SqlSchemaTabContent(
                                 sqlText = sqlSchemaText,
                                 clipboardManager = clipboardManager,
                                 context = context,
@@ -459,15 +469,27 @@ CREATE POLICY "Allow public full access to pending_trips" ON public.pending_trip
                             )
 
                             1 -> MyDispatchedTripsTabContent(
-                                trips = allTrips.filter { it.createdBy == adminName || it.createdBy.isNullOrBlank() },
+                                trips = allTrips,
                                 onRefresh = { pendingTripsViewModel.refreshAdminTrips() },
-                                adminName = adminName
+                                adminName = adminName,
+                                onTripClick = { selectedTripForDetail = it }
                             )
                         }
                     }
                 }
             }
         }
+    }
+
+    if (selectedTripForDetail != null) {
+        TripDetailModal(
+            trip = selectedTripForDetail!!,
+            onDismiss = { selectedTripForDetail = null },
+            pendingTripsViewModel = pendingTripsViewModel,
+            clipboardManager = clipboardManager,
+            context = context,
+            redBrand = if (isMasterAdmin) redBrand else Color(0xFF2563EB)
+        )
     }
 }
 
@@ -948,12 +970,261 @@ private fun FilterChipItem(
 }
 
 // -------------------------------------------------------------
+// TAB 1: MASTER DISPATCHED TRIPS HISTORY
+// -------------------------------------------------------------
+@Composable
+private fun DispatchedTripsHistoryTabContent(
+    trips: List<PendingTrip>,
+    onRefresh: () -> Unit,
+    onTripClick: (PendingTrip) -> Unit,
+    redBrand: Color
+) {
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedFilter by remember { mutableStateOf("ALL") }
+
+    val filteredTrips = trips.filter { trip ->
+        val matchesFilter = when (selectedFilter) {
+            "PENDING" -> trip.status == "pending"
+            "CLAIMED" -> trip.status == "claimed"
+            "COMPLETED" -> trip.status == "completed"
+            else -> true
+        }
+        val query = searchQuery.trim().lowercase()
+        val matchesQuery = query.isBlank() ||
+                trip.customerPhone.lowercase().contains(query) ||
+                (trip.customerName ?: "").lowercase().contains(query) ||
+                trip.tripOtp.lowercase().contains(query) ||
+                (trip.pickupLocation ?: "").lowercase().contains(query) ||
+                (trip.dropLocation ?: "").lowercase().contains(query) ||
+                (trip.createdBy ?: "").lowercase().contains(query) ||
+                (trip.claimedByDriverName ?: "").lowercase().contains(query)
+
+        matchesFilter && matchesQuery
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text("DISPATCH TRIP HISTORY", color = Color.White, fontWeight = FontWeight.Black, fontSize = 14.sp)
+                Text("Master View: All dispatched trips & OTP recovery (${trips.size} total)", color = Color(0xFF94A3B8), fontSize = 11.sp)
+            }
+            IconButton(onClick = onRefresh) {
+                Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = Color.White)
+            }
+        }
+
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            placeholder = { Text("Search phone, name, OTP, location...", fontSize = 12.sp) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = redBrand) },
+            trailingIcon = {
+                if (searchQuery.isNotEmpty()) {
+                    IconButton(onClick = { searchQuery = "" }) {
+                        Icon(Icons.Default.Clear, contentDescription = "Clear", tint = Color(0xFF94A3B8))
+                    }
+                }
+            },
+            singleLine = true,
+            colors = adminTextFieldColors(redBrand),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth().testTag("search_master_trip_history")
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            listOf("ALL", "PENDING", "CLAIMED", "COMPLETED").forEach { filter ->
+                FilterChipItem(
+                    label = filter,
+                    selected = selectedFilter == filter,
+                    onClick = { selectedFilter = filter },
+                    activeColor = when (filter) {
+                        "PENDING" -> Color(0xFFF59E0B)
+                        "CLAIMED" -> Color(0xFF3B82F6)
+                        "COMPLETED" -> Color(0xFF10B981)
+                        else -> redBrand
+                    }
+                )
+            }
+        }
+
+        if (filteredTrips.isEmpty()) {
+            Surface(
+                color = Color(0xFF1E293B),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(Icons.Default.Inbox, contentDescription = null, tint = Color(0xFF64748B), modifier = Modifier.size(44.dp))
+                    Text("No Dispatched Trips Found", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = if (searchQuery.isNotBlank()) "No trips match '$searchQuery'." else "Load a new trip from 'Load Trip' tab to dispatch to drivers.",
+                        color = Color(0xFF94A3B8),
+                        fontSize = 11.sp,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(filteredTrips, key = { it.id ?: (it.tripOtp + (it.customerPhone) + Random.nextInt()) }) { trip ->
+                    TripHistoryCardItem(
+                        trip = trip,
+                        onClick = { onTripClick(trip) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TripHistoryCardItem(
+    trip: PendingTrip,
+    onClick: () -> Unit
+) {
+    Surface(
+        color = Color(0xFF1E293B),
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, Color(0xFF334155)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+    ) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = "Cust: ${trip.customerPhone}",
+                        fontWeight = FontWeight.Black,
+                        color = Color.White,
+                        fontSize = 13.sp
+                    )
+                    if (!trip.customerName.isNullOrBlank()) {
+                        Text("(${trip.customerName})", color = Color(0xFF94A3B8), fontSize = 11.sp)
+                    }
+                }
+
+                Surface(
+                    color = when (trip.status) {
+                        "completed" -> Color(0xFF065F46)
+                        "claimed" -> Color(0xFF1E40AF)
+                        else -> Color(0xFF92400E)
+                    },
+                    shape = RoundedCornerShape(6.dp)
+                ) {
+                    Text(
+                        text = trip.status.uppercase(),
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 9.sp,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    color = Color(0xFFF59E0B).copy(alpha = 0.2f),
+                    shape = RoundedCornerShape(6.dp),
+                    border = BorderStroke(0.5.dp, Color(0xFFF59E0B))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Key, contentDescription = null, tint = Color(0xFFFCD34D), modifier = Modifier.size(12.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "OTP: ${trip.tripOtp}",
+                            color = Color(0xFFFCD34D),
+                            fontWeight = FontWeight.Black,
+                            fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                }
+
+                Text(
+                    text = "Base ₹${trip.baseFare.toInt()} • ₹${trip.perKmFare.toInt()}/KM",
+                    color = Color(0xFF38BDF8),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            if (!trip.pickupLocation.isNullOrBlank() || !trip.dropLocation.isNullOrBlank()) {
+                Text(
+                    text = "${trip.pickupLocation ?: "Anywhere"} → ${trip.dropLocation ?: "Destination"}",
+                    color = Color(0xFF94A3B8),
+                    fontSize = 11.sp,
+                    maxLines = 1
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "By: ${trip.createdBy ?: "Admin"}",
+                    color = Color(0xFF64748B),
+                    fontSize = 10.sp
+                )
+
+                if (!trip.claimedByDriverName.isNullOrBlank()) {
+                    Text(
+                        text = "Driver: ${trip.claimedByDriverName}",
+                        color = Color(0xFF60A5FA),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Text(
+                    text = "VIEW & RECOVER OTP ➔",
+                    color = Color(0xFF38BDF8),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+// -------------------------------------------------------------
 // TAB 4: COMMISSION & TRIP HISTORY
 // -------------------------------------------------------------
 @Composable
 private fun CommissionTabContent(
     trips: List<PendingTrip>,
     onRefresh: () -> Unit,
+    onTripClick: (PendingTrip) -> Unit,
     redBrand: Color
 ) {
     val completed = trips.filter { it.status == "completed" }
@@ -1032,81 +1303,10 @@ private fun CommissionTabContent(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(trips, key = { it.id ?: (it.tripOtp + (it.customerPhone)) }) { trip ->
-                    Surface(
-                        color = Color(0xFF1E293B),
-                        shape = RoundedCornerShape(14.dp),
-                        border = BorderStroke(1.dp, Color(0xFF334155)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "Cust: ${trip.customerPhone}",
-                                    fontWeight = FontWeight.Black,
-                                    color = Color.White,
-                                    fontSize = 13.sp
-                                )
-                                Surface(
-                                    color = when (trip.status) {
-                                        "completed" -> Color(0xFF065F46)
-                                        "claimed" -> Color(0xFF1E40AF)
-                                        else -> Color(0xFF92400E)
-                                    },
-                                    shape = RoundedCornerShape(6.dp)
-                                ) {
-                                    Text(
-                                        text = trip.status.uppercase(),
-                                        color = Color.White,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 9.sp,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                    )
-                                }
-                            }
-
-                            Text(
-                                text = "From: ${trip.pickupLocation ?: "Anywhere"} → ${trip.dropLocation ?: "Destination"}",
-                                color = Color(0xFF94A3B8),
-                                fontSize = 11.sp,
-                                modifier = Modifier.padding(vertical = 2.dp)
-                            )
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = "Base: ₹${trip.baseFare.toInt()} | Rate: ₹${trip.perKmFare.toInt()}/KM",
-                                    color = Color(0xFF64748B),
-                                    fontSize = 10.sp
-                                )
-                                if (trip.status == "completed") {
-                                    val fare = trip.finalFare ?: 0.0
-                                    val comm = trip.commissionAmount ?: (fare * 0.10)
-                                    Text(
-                                        text = "Fare: ₹${fare.toInt()} (Comm: ₹${comm.toInt()})",
-                                        color = Color(0xFF34D399),
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 11.sp
-                                    )
-                                }
-                            }
-
-                            if (!trip.claimedByDriverName.isNullOrBlank()) {
-                                Text(
-                                    text = "Claimed by: ${trip.claimedByDriverName} (${trip.claimedByDriverPhone ?: ""})",
-                                    color = Color(0xFF60A5FA),
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(top = 2.dp)
-                                )
-                            }
-                        }
-                    }
+                    TripHistoryCardItem(
+                        trip = trip,
+                        onClick = { onTripClick(trip) }
+                    )
                 }
             }
         }
@@ -1120,11 +1320,33 @@ private fun CommissionTabContent(
 private fun MyDispatchedTripsTabContent(
     trips: List<PendingTrip>,
     onRefresh: () -> Unit,
-    adminName: String
+    adminName: String,
+    onTripClick: (PendingTrip) -> Unit
 ) {
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedFilter by remember { mutableStateOf("ALL") }
+
+    val filteredTrips = trips.filter { trip ->
+        val matchesFilter = when (selectedFilter) {
+            "PENDING" -> trip.status == "pending"
+            "CLAIMED" -> trip.status == "claimed"
+            "COMPLETED" -> trip.status == "completed"
+            else -> true
+        }
+        val query = searchQuery.trim().lowercase()
+        val matchesQuery = query.isBlank() ||
+                trip.customerPhone.lowercase().contains(query) ||
+                (trip.customerName ?: "").lowercase().contains(query) ||
+                trip.tripOtp.lowercase().contains(query) ||
+                (trip.pickupLocation ?: "").lowercase().contains(query) ||
+                (trip.dropLocation ?: "").lowercase().contains(query)
+
+        matchesFilter && matchesQuery
+    }
+
     Column(
         modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1132,27 +1354,65 @@ private fun MyDispatchedTripsTabContent(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
-                Text("MY DISPATCHED TRIPS (${trips.size})", color = Color.White, fontWeight = FontWeight.Black, fontSize = 14.sp)
-                Text("Trips loaded by $adminName", color = Color(0xFF94A3B8), fontSize = 11.sp)
+                Text("MY DISPATCHED TRIPS (${filteredTrips.size})", color = Color.White, fontWeight = FontWeight.Black, fontSize = 14.sp)
+                Text("Click any trip to inspect details or recover OTP", color = Color(0xFF94A3B8), fontSize = 11.sp)
             }
             IconButton(onClick = onRefresh) {
                 Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = Color.White)
             }
         }
 
-        if (trips.isEmpty()) {
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            placeholder = { Text("Search phone, name, OTP, location...", fontSize = 12.sp) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color(0xFF2563EB)) },
+            trailingIcon = {
+                if (searchQuery.isNotEmpty()) {
+                    IconButton(onClick = { searchQuery = "" }) {
+                        Icon(Icons.Default.Clear, contentDescription = "Clear", tint = Color(0xFF94A3B8))
+                    }
+                }
+            },
+            singleLine = true,
+            colors = adminTextFieldColors(Color(0xFF2563EB)),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth().testTag("search_regular_trip_history")
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            listOf("ALL", "PENDING", "CLAIMED", "COMPLETED").forEach { filter ->
+                FilterChipItem(
+                    label = filter,
+                    selected = selectedFilter == filter,
+                    onClick = { selectedFilter = filter },
+                    activeColor = when (filter) {
+                        "PENDING" -> Color(0xFFF59E0B)
+                        "CLAIMED" -> Color(0xFF3B82F6)
+                        "COMPLETED" -> Color(0xFF10B981)
+                        else -> Color(0xFF2563EB)
+                    }
+                )
+            }
+        }
+
+        if (filteredTrips.isEmpty()) {
             Surface(
                 color = Color(0xFF1E293B),
                 shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.fillMaxWidth().padding(top = 20.dp)
+                modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
             ) {
                 Column(
                     modifier = Modifier.padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Icon(Icons.Default.Inbox, contentDescription = null, tint = Color(0xFF64748B), modifier = Modifier.size(44.dp))
-                    Text("No Dispatched Trips", color = Color.White, fontWeight = FontWeight.Bold)
-                    Text("Load a new trip from the 'Load Trip' tab to dispatch to drivers.", color = Color(0xFF94A3B8), fontSize = 11.sp)
+                    Text("No Dispatched Trips Found", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text("Load a new trip from the 'Load Trip' tab to dispatch to drivers.", color = Color(0xFF94A3B8), fontSize = 11.sp, textAlign = TextAlign.Center)
                 }
             }
         } else {
@@ -1160,46 +1420,310 @@ private fun MyDispatchedTripsTabContent(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(trips, key = { it.id ?: (it.tripOtp + (it.customerPhone)) }) { trip ->
+                items(filteredTrips, key = { it.id ?: (it.tripOtp + (it.customerPhone) + Random.nextInt()) }) { trip ->
+                    TripHistoryCardItem(
+                        trip = trip,
+                        onClick = { onTripClick(trip) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+// -------------------------------------------------------------
+// TRIP DETAIL & OTP RECOVERY MODAL
+// -------------------------------------------------------------
+@Composable
+private fun TripDetailModal(
+    trip: PendingTrip,
+    onDismiss: () -> Unit,
+    pendingTripsViewModel: PendingTripsViewModel,
+    clipboardManager: ClipboardManager,
+    context: Context,
+    redBrand: Color
+) {
+    var isDeleting by remember { mutableStateOf(false) }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .wrapContentHeight(),
+            shape = RoundedCornerShape(24.dp),
+            color = Color(0xFF1E293B),
+            border = BorderStroke(1.5.dp, redBrand)
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(20.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "TRIP #${trip.id ?: "LIVE"}",
+                            fontWeight = FontWeight.Black,
+                            fontSize = 16.sp,
+                            color = Color.White
+                        )
+                        Text(
+                            text = "Dispatched by: ${trip.createdBy ?: "Master Admin"}",
+                            fontSize = 11.sp,
+                            color = Color(0xFF94A3B8)
+                        )
+                    }
+
                     Surface(
-                        color = Color(0xFF1E293B),
+                        color = when (trip.status) {
+                            "completed" -> Color(0xFF065F46)
+                            "claimed" -> Color(0xFF1E40AF)
+                            else -> Color(0xFF92400E)
+                        },
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            text = trip.status.uppercase(),
+                            color = Color.White,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 11.sp,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+
+                // 🔐 SECURITY OTP RECOVERY BOX
+                Surface(
+                    color = Color(0xFF0F172A),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.5.dp, Color(0xFFF59E0B)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Key, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "SECURITY CLAIM OTP",
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 11.sp,
+                                    color = Color(0xFFFCD34D)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = trip.tripOtp,
+                                fontWeight = FontWeight.Black,
+                                fontSize = 28.sp,
+                                color = Color.White,
+                                fontFamily = FontFamily.Monospace
+                            )
+                            Text(
+                                text = "Share with driver to claim trip on Bash Cloud.",
+                                fontSize = 10.sp,
+                                color = Color(0xFF94A3B8)
+                            )
+                        }
+
+                        Button(
+                            onClick = {
+                                clipboardManager.setPrimaryClip(ClipData.newPlainText("Trip OTP", trip.tripOtp))
+                                Toast.makeText(context, "✅ OTP ${trip.tripOtp} copied to clipboard!", Toast.LENGTH_SHORT).show()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF59E0B)),
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                            modifier = Modifier.testTag("copy_otp_button_${trip.id ?: 0}")
+                        ) {
+                            Icon(Icons.Default.ContentCopy, contentDescription = null, tint = Color.Black, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("COPY", color = Color.Black, fontWeight = FontWeight.Black, fontSize = 11.sp)
+                        }
+                    }
+                }
+
+                // Customer Info Card
+                Surface(
+                    color = Color(0xFF0F172A),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("CUSTOMER DETAILS", fontSize = 10.sp, color = Color(0xFF94A3B8), fontWeight = FontWeight.Bold)
+                            Text(
+                                text = "Phone: ${trip.customerPhone}",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = Color.White
+                            )
+                            if (!trip.customerName.isNullOrBlank()) {
+                                Text(
+                                    text = "Name: ${trip.customerName}",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFFCBD5E1)
+                                )
+                            }
+                        }
+
+                        Button(
+                            onClick = { launchPhoneDialer(context, trip.customerPhone) },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            modifier = Modifier.testTag("call_customer_detail_button")
+                        ) {
+                            Icon(Icons.Default.Phone, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("CALL", color = Color.White, fontWeight = FontWeight.Black, fontSize = 11.sp)
+                        }
+                    }
+                }
+
+                // Route & Tariff Details
+                Surface(
+                    color = Color(0xFF0F172A),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text("ROUTE & TARIFF", fontSize = 10.sp, color = Color(0xFF94A3B8), fontWeight = FontWeight.Bold)
+                        if (!trip.pickupLocation.isNullOrBlank()) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.MyLocation, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(trip.pickupLocation, fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                        if (!trip.dropLocation.isNullOrBlank()) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.PinDrop, contentDescription = null, tint = redBrand, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(trip.dropLocation, fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                        HorizontalDivider(color = Color(0xFF334155), thickness = 0.5.dp)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Base Fare: ₹${trip.baseFare}", fontSize = 12.sp, color = Color(0xFF38BDF8), fontWeight = FontWeight.Bold)
+                            Text("Rate: ₹${trip.perKmFare}/KM", fontSize = 12.sp, color = Color(0xFF38BDF8), fontWeight = FontWeight.Bold)
+                        }
+                        if (trip.status == "completed") {
+                            Text("Final Fare: ₹${trip.finalFare ?: 0.0} (Commission: ₹${trip.commissionAmount ?: 0.0})", fontSize = 12.sp, color = Color(0xFF34D399), fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                // Driver Claim Details
+                if (!trip.claimedByDriverName.isNullOrBlank() || !trip.claimedByDriverPhone.isNullOrBlank()) {
+                    Surface(
+                        color = Color(0xFF0F172A),
                         shape = RoundedCornerShape(14.dp),
-                        border = BorderStroke(1.dp, Color(0xFF334155)),
+                        border = BorderStroke(1.dp, Color(0xFF2563EB)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("Cust: ${trip.customerPhone}", fontWeight = FontWeight.Black, color = Color.White, fontSize = 13.sp)
-                                Surface(
-                                    color = when (trip.status) {
-                                        "completed" -> Color(0xFF065F46)
-                                        "claimed" -> Color(0xFF1E40AF)
-                                        else -> Color(0xFF92400E)
-                                    },
-                                    shape = RoundedCornerShape(6.dp)
-                                ) {
-                                    Text(
-                                        text = trip.status.uppercase(),
-                                        color = Color.White,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 9.sp,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                    )
-                                }
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text("CLAIMED DRIVER", fontSize = 10.sp, color = Color(0xFF60A5FA), fontWeight = FontWeight.Bold)
+                            Text("Name: ${trip.claimedByDriverName ?: "Driver"}", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text("Phone: ${trip.claimedByDriverPhone ?: "N/A"}", color = Color(0xFFCBD5E1), fontSize = 12.sp)
+                            if (!trip.claimedByDriverId.isNullOrBlank()) {
+                                Text("Driver ID: ${trip.claimedByDriverId}", color = Color(0xFF94A3B8), fontSize = 11.sp)
                             }
-                            Text("OTP: ${trip.tripOtp} | Base ₹${trip.baseFare.toInt()} | Rate ₹${trip.perKmFare.toInt()}/KM", color = Color(0xFF94A3B8), fontSize = 11.sp)
-                            if (!trip.claimedByDriverName.isNullOrBlank()) {
-                                Text("Claimed by Driver: ${trip.claimedByDriverName}", color = Color(0xFF60A5FA), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                // Actions
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, Color(0xFF475569)),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF94A3B8)),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Close")
+                    }
+
+                    if (trip.status == "pending" && trip.id != null) {
+                        Button(
+                            onClick = {
+                                isDeleting = true
+                                pendingTripsViewModel.deletePendingTrip(
+                                    tripId = trip.id,
+                                    onSuccess = {
+                                        isDeleting = false
+                                        onDismiss()
+                                        Toast.makeText(context, "🗑️ Trip Deleted Successfully", Toast.LENGTH_SHORT).show()
+                                    },
+                                    onError = { err ->
+                                        isDeleting = false
+                                        Toast.makeText(context, "❌ Error: $err", Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+                            },
+                            enabled = !isDeleting,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1f).testTag("delete_trip_detail_button")
+                        ) {
+                            if (isDeleting) {
+                                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(16.dp))
+                            } else {
+                                Icon(Icons.Default.Delete, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Delete", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                             }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+private fun launchPhoneDialer(context: Context, phoneNumber: String) {
+    try {
+        val cleanNumber = phoneNumber.trim().replace(" ", "")
+        val dialIntent = android.content.Intent(android.content.Intent.ACTION_DIAL, android.net.Uri.parse("tel:$cleanNumber")).apply {
+            flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        context.startActivity(dialIntent)
+    } catch (e: Exception) {
+        Toast.makeText(context, "Could not open dialer: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
     }
 }
 

@@ -8,6 +8,27 @@ import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Order
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class MinimalPendingTrip(
+    @SerialName("customer_name")
+    val customerName: String? = null,
+    @SerialName("customer_phone")
+    val customerPhone: String,
+    @SerialName("pickup_location")
+    val pickupLocation: String? = null,
+    @SerialName("drop_location")
+    val dropLocation: String? = null,
+    @SerialName("trip_otp")
+    val tripOtp: String,
+    @SerialName("base_fare")
+    val baseFare: Double,
+    @SerialName("per_km_fare")
+    val perKmFare: Double,
+    val status: String = "pending"
+)
 
 class SupabaseTripsRepository {
 
@@ -34,11 +55,29 @@ class SupabaseTripsRepository {
 
     suspend fun insertPendingTrip(trip: PendingTrip): Result<Unit> = withContext(Dispatchers.IO) {
         try {
+            // First attempt full insert with all fields
             client.from(tripsTable).insert(trip)
             Result.success(Unit)
         } catch (e: Exception) {
-            Log.e("SupabaseTripsRepo", "Error inserting pending trip: ${e.message}", e)
-            Result.failure(e)
+            Log.w("SupabaseTripsRepo", "Full insert failed (${e.message}), attempting minimal fallback insert")
+            try {
+                // Fallback to core columns in case created_by or other optional columns are missing in Supabase schema
+                val fallbackTrip = MinimalPendingTrip(
+                    customerName = trip.customerName,
+                    customerPhone = trip.customerPhone,
+                    pickupLocation = trip.pickupLocation,
+                    dropLocation = trip.dropLocation,
+                    tripOtp = trip.tripOtp,
+                    baseFare = trip.baseFare,
+                    perKmFare = trip.perKmFare,
+                    status = trip.status
+                )
+                client.from(tripsTable).insert(fallbackTrip)
+                Result.success(Unit)
+            } catch (e2: Exception) {
+                Log.e("SupabaseTripsRepo", "Error inserting pending trip fallback: ${e2.message}", e2)
+                Result.failure(e2)
+            }
         }
     }
 
@@ -63,8 +102,22 @@ class SupabaseTripsRepository {
             }
             Result.success(Unit)
         } catch (e: Exception) {
-            Log.e("SupabaseTripsRepo", "Error claiming trip $tripId: ${e.message}", e)
-            Result.failure(e)
+            Log.w("SupabaseTripsRepo", "Full claim update failed (${e.message}), attempting status-only fallback")
+            try {
+                client.from(tripsTable).update(
+                    {
+                        set("status", "claimed")
+                    }
+                ) {
+                    filter {
+                        eq("id", tripId)
+                    }
+                }
+                Result.success(Unit)
+            } catch (e2: Exception) {
+                Log.e("SupabaseTripsRepo", "Error claiming trip $tripId: ${e2.message}", e2)
+                Result.failure(e2)
+            }
         }
     }
 
@@ -87,7 +140,35 @@ class SupabaseTripsRepository {
             }
             Result.success(Unit)
         } catch (e: Exception) {
-            Log.e("SupabaseTripsRepo", "Error completing trip $tripId: ${e.message}", e)
+            Log.w("SupabaseTripsRepo", "Full complete update failed (${e.message}), attempting status-only fallback")
+            try {
+                client.from(tripsTable).update(
+                    {
+                        set("status", "completed")
+                    }
+                ) {
+                    filter {
+                        eq("id", tripId)
+                    }
+                }
+                Result.success(Unit)
+            } catch (e2: Exception) {
+                Log.e("SupabaseTripsRepo", "Error completing trip $tripId: ${e2.message}", e2)
+                Result.failure(e2)
+            }
+        }
+    }
+
+    suspend fun deleteTrip(tripId: Long): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            client.from(tripsTable).delete {
+                filter {
+                    eq("id", tripId)
+                }
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("SupabaseTripsRepo", "Error deleting trip $tripId: ${e.message}", e)
             Result.failure(e)
         }
     }
@@ -146,8 +227,29 @@ class SupabaseTripsRepository {
             }
             Result.success(Unit)
         } catch (e: Exception) {
-            Log.e("SupabaseTripsRepo", "Error saving driver profile: ${e.message}", e)
-            Result.failure(e)
+            Log.w("SupabaseTripsRepo", "Full driver upsert failed (${e.message}), attempting minimal fallback")
+            try {
+                @Serializable
+                data class MinimalDriver(
+                    @SerialName("driver_name") val driverName: String,
+                    @SerialName("driver_phone") val driverPhone: String,
+                    @SerialName("is_active") val isActive: Boolean = true,
+                    val status: String = "AVAILABLE"
+                )
+                val minDriver = MinimalDriver(
+                    driverName = driver.driverName,
+                    driverPhone = driver.driverPhone,
+                    isActive = driver.isActive,
+                    status = driver.status
+                )
+                client.from(driversTable).upsert(minDriver) {
+                    onConflict = "driver_phone"
+                }
+                Result.success(Unit)
+            } catch (e2: Exception) {
+                Log.e("SupabaseTripsRepo", "Error saving driver profile: ${e2.message}", e2)
+                Result.failure(e2)
+            }
         }
     }
 
@@ -173,3 +275,4 @@ class SupabaseTripsRepository {
         }
     }
 }
+

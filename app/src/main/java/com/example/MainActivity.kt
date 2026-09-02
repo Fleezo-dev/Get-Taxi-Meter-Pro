@@ -17,6 +17,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -69,6 +70,12 @@ class MainActivity : ComponentActivity() {
             val updateInfo by AppUpdater.updateInfo.collectAsStateWithLifecycle()
             val driverProfile by dispatchViewModel.driverProfile.collectAsStateWithLifecycle()
             val isDarkMode by settingsViewModel.isDarkMode.collectAsStateWithLifecycle()
+
+            LaunchedEffect(driverProfile.driverName, driverProfile.phoneNumber, driverProfile.driverId) {
+                if (driverProfile.driverName.isNotBlank() || driverProfile.phoneNumber.isNotBlank() || driverProfile.driverId.isNotBlank()) {
+                    pendingTripsViewModel.registerOrUpdateDriver(driverProfile)
+                }
+            }
 
             GetTaxiTheme(darkTheme = isDarkMode) {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->

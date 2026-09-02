@@ -101,18 +101,27 @@ class PendingTripsViewModel(application: Application) : AndroidViewModel(applica
     }
 
     fun registerOrUpdateDriver(profile: DriverProfile) {
-        if (profile.phoneNumber.isBlank()) return
+        val phone = profile.phoneNumber.trim().ifBlank {
+            if (profile.driverId.isNotBlank()) "ID-${profile.driverId}" else ""
+        }
+        val name = profile.driverName.ifBlank {
+            if (profile.driverId.isNotBlank()) "Driver ${profile.driverId}" else "Registered Driver"
+        }
+        if (phone.isBlank()) return
+
         viewModelScope.launch {
             val entity = DriverRemoteEntity(
                 driverId = profile.driverId,
-                driverName = profile.driverName.ifBlank { "Driver ${profile.driverId}" },
-                driverPhone = profile.phoneNumber.trim(),
-                vehicleNumber = profile.vehiclePlate,
+                driverName = name,
+                driverPhone = phone,
+                vehicleNumber = profile.vehiclePlate.ifBlank { profile.vehicleModel },
                 vehicleType = profile.vehicleType,
                 isActive = profile.isActive,
-                status = profile.status
+                status = if (profile.isOnline) "AVAILABLE" else "OFFLINE"
             )
-            repository.upsertDriver(entity)
+            repository.upsertDriver(entity).onSuccess {
+                refreshDrivers()
+            }
         }
     }
 
@@ -199,25 +208,50 @@ class PendingTripsViewModel(application: Application) : AndroidViewModel(applica
                 }
             }
 
+            val effectiveDriverName = if (driverProfile.driverName.isNotBlank()) driverProfile.driverName else "Master Admin"
+            val effectiveDriverPhone = if (driverProfile.phoneNumber.isNotBlank()) driverProfile.phoneNumber else "Admin"
+            val effectiveDriverId = if (driverProfile.driverId.isNotBlank()) driverProfile.driverId else "ADMIN_MASTER"
+
             repository.claimTrip(
                 tripId = tripId,
-                driverId = driverProfile.driverId,
-                driverName = driverProfile.driverName,
-                driverPhone = driverProfile.phoneNumber
+                driverId = effectiveDriverId,
+                driverName = effectiveDriverName,
+                driverPhone = effectiveDriverPhone
             ).onSuccess {
                 _isLoading.value = false
                 refreshPendingTrips()
                 refreshAdminTrips()
                 onSuccess(trip.copy(
                     status = "claimed",
-                    claimedByDriverId = driverProfile.driverId,
-                    claimedByDriverName = driverProfile.driverName,
-                    claimedByDriverPhone = driverProfile.phoneNumber
+                    claimedByDriverId = effectiveDriverId,
+                    claimedByDriverName = effectiveDriverName,
+                    claimedByDriverPhone = effectiveDriverPhone
                 ))
             }.onFailure { e ->
                 _isLoading.value = false
                 onError(e.message ?: "Failed to claim trip on Supabase")
             }
+        }
+    }
+
+    fun deletePendingTrip(
+        tripId: Long,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            repository.deleteTrip(tripId)
+                .onSuccess {
+                    _isLoading.value = false
+                    refreshPendingTrips()
+                    refreshAdminTrips()
+                    onSuccess()
+                }
+                .onFailure { e ->
+                    _isLoading.value = false
+                    onError(e.message ?: "Failed to delete trip")
+                }
         }
     }
 
