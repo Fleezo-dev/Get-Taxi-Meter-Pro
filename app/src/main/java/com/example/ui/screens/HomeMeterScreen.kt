@@ -191,10 +191,27 @@ fun HomeMeterScreen(
         }
     }
 
+    // ADMIN AUTH PIN MODAL (FOR MASTER AND REGULAR ADMIN AUTH)
+    if (showAdminAuthModal) {
+        AdminAuthPinModal(
+            onDismiss = { showAdminAuthModal = false },
+            onPinSuccess = {
+                showAdminAuthModal = false
+                showAdminPanelModal = true
+            },
+            onVerifyPin = { enteredPin ->
+                dispatchViewModel.verifyAdminPin(enteredPin)
+            }
+        )
+    }
+
     // ADMIN PANEL MODAL (SUPABASE LOAD TRIP & OFFLINE KEY GENERATOR)
     if (showAdminPanelModal) {
         AdminPanelModal(
-            onDismiss = { showAdminPanelModal = false },
+            onDismiss = {
+                showAdminPanelModal = false
+                dispatchViewModel.logoutAdmin()
+            },
             pendingTripsViewModel = pendingTripsViewModel,
             dispatchViewModel = dispatchViewModel
         )
@@ -480,11 +497,7 @@ fun HomeMeterScreen(
                             lastBrandTapTime = now
                             if (brandTapCount >= 5) {
                                 brandTapCount = 0
-                                if (isDispatcherAuthenticated) {
-                                    showAdminPanelModal = true
-                                } else {
-                                    showAdminAuthModal = true
-                                }
+                                showAdminAuthModal = true
                             }
                         }
                     ) {
@@ -550,11 +563,7 @@ fun HomeMeterScreen(
                     // Admin Panel Button with Master Key Security Check
                     Button(
                         onClick = {
-                            if (isDispatcherAuthenticated) {
-                                showAdminPanelModal = true
-                            } else {
-                                showAdminAuthModal = true
-                            }
+                            showAdminAuthModal = true
                         },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color.White,

@@ -217,15 +217,31 @@ CREATE POLICY "Allow public full access to pending_trips" ON public.pending_trip
                                 }
                             }
 
-                            IconButton(
-                                onClick = onDismiss,
-                                modifier = Modifier.testTag("close_admin_panel_button")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "Close",
-                                    tint = Color(0xFF94A3B8)
-                                )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(
+                                    onClick = {
+                                        dispatchViewModel?.logoutAdmin()
+                                        onDismiss()
+                                    },
+                                    modifier = Modifier.testTag("logout_admin_panel_button")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Logout,
+                                        contentDescription = "Switch Admin / Logout",
+                                        tint = Color(0xFFEF4444)
+                                    )
+                                }
+
+                                IconButton(
+                                    onClick = onDismiss,
+                                    modifier = Modifier.testTag("close_admin_panel_button")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Close",
+                                        tint = Color(0xFF94A3B8)
+                                    )
+                                }
                             }
                         }
 
@@ -241,8 +257,7 @@ CREATE POLICY "Allow public full access to pending_trips" ON public.pending_trip
                         } else {
                             listOf(
                                 "📋 Load Trip",
-                                "📦 My Trips",
-                                "🔐 Key Gen"
+                                "📦 My Trips"
                             )
                         }
 
@@ -447,35 +462,6 @@ CREATE POLICY "Allow public full access to pending_trips" ON public.pending_trip
                                 trips = allTrips.filter { it.createdBy == adminName || it.createdBy.isNullOrBlank() },
                                 onRefresh = { pendingTripsViewModel.refreshAdminTrips() },
                                 adminName = adminName
-                            )
-
-                            2 -> KeyGenTabContent(
-                                currentDeviceId = currentDeviceId,
-                                inputDeviceId = inputDeviceId,
-                                onInputDeviceIdChange = { inputDeviceId = it },
-                                generatedKey = generatedKey,
-                                onGenerateKey = {
-                                    val target = inputDeviceId.ifBlank { currentDeviceId }
-                                    val key = ActivationSecurityManager.generateActivationKeyForDevice(target)
-                                    generatedKey = key
-                                    generationHistory = listOf(target to key) + generationHistory
-                                },
-                                isDeviceCurrentlyActivated = isDeviceCurrentlyActivated,
-                                onActivateSelf = {
-                                    val key = ActivationSecurityManager.generateActivationKeyForDevice(currentDeviceId)
-                                    ActivationSecurityManager.setActivated(context, true, key)
-                                    isDeviceCurrentlyActivated = true
-                                    Toast.makeText(context, "✅ Activated Current Device!", Toast.LENGTH_SHORT).show()
-                                },
-                                onDeactivateSelf = {
-                                    ActivationSecurityManager.clearActivation(context)
-                                    isDeviceCurrentlyActivated = false
-                                    Toast.makeText(context, "⚠️ Current Device Deactivated", Toast.LENGTH_SHORT).show()
-                                },
-                                onResetProfile = onResetProfile,
-                                clipboardManager = clipboardManager,
-                                context = context,
-                                redBrand = Color(0xFF2563EB)
                             )
                         }
                     }
