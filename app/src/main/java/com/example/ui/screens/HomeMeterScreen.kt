@@ -488,161 +488,83 @@ fun HomeMeterScreen(
             TopAppBar(
                 title = {
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.clickable {
-                            val now = System.currentTimeMillis()
-                            if (now - lastBrandTapTime > 2000L) {
-                                brandTapCount = 1
-                            } else {
-                                brandTapCount++
-                            }
-                            lastBrandTapTime = now
-                            if (brandTapCount >= 5) {
-                                brandTapCount = 0
-                                showAdminAuthModal = true
-                            }
-                        }
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Surface(
-                            color = Color.White,
-                            shape = CircleShape,
+                        Box(
                             modifier = Modifier
-                                .size(36.dp)
-                                .clickable { onNavigateToProfile() },
-                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.5f))
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                if (driverProfile.photoUri.isNotBlank()) {
-                                    val topImageModel = if (driverProfile.photoUri.startsWith("data:image/jpeg;base64,")) {
-                                        val b64 = driverProfile.photoUri.substringAfter("base64,")
-                                        try {
-                                            android.util.Base64.decode(b64, android.util.Base64.DEFAULT)
-                                        } catch (e: Exception) {
-                                            driverProfile.photoUri
-                                        }
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(brandRed)
+                                .clickable {
+                                    val now = System.currentTimeMillis()
+                                    if (now - lastBrandTapTime > 2000L) {
+                                        brandTapCount = 1
                                     } else {
-                                        driverProfile.photoUri
+                                        brandTapCount++
                                     }
-                                    AsyncImage(
-                                        model = topImageModel,
-                                        contentDescription = "Driver Photo",
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .clip(CircleShape),
-                                        contentScale = ContentScale.Crop
-                                    )
-                                } else {
-                                    Image(
-                                        painter = painterResource(id = R.drawable.ic_get_taxi_vector),
-                                        contentDescription = "Get Taxi Logo",
-                                        modifier = Modifier.size(28.dp)
-                                    )
-                                }
-                            }
+                                    lastBrandTapTime = now
+                                    if (brandTapCount >= 5) {
+                                        brandTapCount = 0
+                                        showAdminAuthModal = true
+                                    }
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DirectionsCar,
+                                contentDescription = "Taxi Logo",
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp)
+                            )
                         }
+
                         Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = "GET TAXI",
-                            color = Color.White,
-                            fontWeight = FontWeight.Black,
-                            fontSize = 18.sp
-                        )
+
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "Taxi Meter ",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 17.sp,
+                                    color = Color(0xFF0F172A)
+                                )
+                                Text(
+                                    text = "By Get Taxi",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 17.sp,
+                                    color = brandRed
+                                )
+                            }
+                            Text(
+                                text = "${driverProfile.vehiclePlate} • ${driverProfile.driverName} (${driverProfile.driverId})",
+                                fontSize = 11.sp,
+                                color = Color(0xFF64748B)
+                            )
+                        }
                     }
                 },
                 actions = {
-                    // Driver Profile Button
-                    IconButton(
-                        onClick = onNavigateToProfile,
-                        modifier = Modifier.testTag("driver_profile_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Badge,
-                            contentDescription = "Driver Profile",
-                            tint = Color.White
-                        )
-                    }
-
-                    // Floating Bubble Mini-Mode Quick Button
-                    IconButton(
-                        onClick = {
-                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M && !android.provider.Settings.canDrawOverlays(context)) {
-                                val intent = android.content.Intent(
-                                    android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                    android.net.Uri.parse("package:${context.packageName}")
-                                )
-                                context.startActivity(intent)
-                            } else {
-                                com.example.service.FloatingBubbleService.start(context)
-                                // Send app to home screen / background
-                                val homeIntent = android.content.Intent(android.content.Intent.ACTION_MAIN).apply {
-                                    addCategory(android.content.Intent.CATEGORY_HOME)
-                                    flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
-                                }
-                                context.startActivity(homeIntent)
-                            }
-                        },
-                        modifier = Modifier.testTag("floating_bubble_quick_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.FlipToFront,
-                            contentDescription = "Pop out Floating Bubble",
-                            tint = Color.White
-                        )
-                    }
-
-                    // Admin Panel Button with Master Key Security Check
-                    Button(
-                        onClick = {
-                            showAdminAuthModal = true
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color.White,
-                            contentColor = brandRed
-                        ),
-                        shape = RoundedCornerShape(20.dp),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                        modifier = Modifier
-                            .padding(end = 4.dp)
-                            .testTag("admin_panel_button")
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.AdminPanelSettings,
-                                contentDescription = "Admin Panel",
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "ADMIN",
-                                fontWeight = FontWeight.Black,
-                                fontSize = 11.sp
-                            )
-                        }
-                    }
-
                     IconButton(
                         onClick = {
                             settingsPinInput = ""
                             isSettingsPinError = false
                             showSettingsPinModal = true
                         },
-                        modifier = Modifier
-                            .testTag("settings_button")
-                            .minimumInteractiveComponentSize()
+                        modifier = Modifier.testTag("settings_button")
                     ) {
                         Icon(
                             imageVector = Icons.Default.Settings,
                             contentDescription = "Settings",
-                            tint = Color.White
+                            tint = Color(0xFF0F172A)
                         )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = brandRed
+                    containerColor = Color.White
                 )
             )
         },
-        containerColor = MaterialTheme.colorScheme.background
+        containerColor = Color(0xFFF1F5F9)
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -1231,478 +1153,492 @@ fun HomeMeterScreen(
                 }
             }
 
-            // LIVE ROUTE MAP VIEW (PROMINENT AT TOP OF HOME SCREEN)
-            TripMapView(
-                tripState = tripState,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(240.dp)
-                    .clip(RoundedCornerShape(24.dp))
-                    .border(1.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(24.dp))
-                    .padding(vertical = 4.dp)
-            )
-
-            // GIGANTIC DARK BLUE / ALMOST BLACK FARE DISPLAY CARD
+            // WHITE MAIN CONTAINER CARD
             Card(
-                colors = CardDefaults.cardColors(containerColor = MainFareCardDarkBlue),
-                shape = RoundedCornerShape(32.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 10.dp),
-                border = BorderStroke(1.5.dp, MainFareCardBorder),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                shape = RoundedCornerShape(28.dp),
+                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 12.dp)
+                    .padding(vertical = 8.dp)
             ) {
                 Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(24.dp)
+                        .padding(16.dp)
                 ) {
-                    val fareHeaderLabel = when (tripState.rideType) {
-                        "HOURLY_RENTAL" -> "HOURLY RENTAL (${tripState.currency}${tripState.ratePerHour.toInt()}/HR)"
-                        "OUTSTATION" -> "OUTSTATION TRIP"
-                        else -> "TOTAL RIDE FARE"
-                    }
-                    Text(
-                        text = fareHeaderLabel,
-                        color = brandRed,
-                        fontWeight = FontWeight.Black,
-                        fontSize = 12.sp,
-                        letterSpacing = 2.0.sp
-                    )
-
-                    Box(
-                        modifier = Modifier.padding(vertical = 4.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(verticalAlignment = Alignment.Top) {
-                            Text(
-                                text = String.format(Locale.US, "%.2f", tripState.currentFare),
-                                color = Color.White,
-                                fontSize = 68.sp,
-                                fontWeight = FontWeight.Black,
-                                modifier = Modifier.testTag("fare_text")
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = tripState.currency,
-                                color = brandRed,
-                                fontSize = 26.sp,
-                                fontWeight = FontWeight.Black,
-                                modifier = Modifier.padding(top = 8.dp)
-                            )
-                        }
-                    }
-
-                    // Distance & Wait time boxes
-                    Row(
+                    // CATEGORY SELECTOR CONTAINER BAR
+                    Surface(
+                        color = Color(0xFF3F4855),
+                        shape = RoundedCornerShape(20.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            .padding(bottom = 14.dp)
                     ) {
-                        // Distance Box
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .background(MainFareCardSurface, RoundedCornerShape(20.dp))
-                                .border(1.dp, MainFareCardBorder, RoundedCornerShape(20.dp))
-                                .padding(12.dp),
-                            contentAlignment = Alignment.Center
+                        Row(
+                            modifier = Modifier.padding(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("DISTANCE", color = brandRed, fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 0.5.sp)
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Row(verticalAlignment = Alignment.Bottom) {
+                            // LOCAL Tab
+                            Surface(
+                                color = if (selectedManualRideType == "LOCAL_RIDE") brandRed else Color.Transparent,
+                                shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { selectedManualRideType = "LOCAL_RIDE" }
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(vertical = 8.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
                                     Text(
-                                        text = String.format(Locale.US, "%.1f", tripState.distanceKm),
-                                        color = Color.White,
-                                        fontSize = 20.sp,
-                                        fontWeight = FontWeight.Black
+                                        text = "LOCAL",
+                                        color = if (selectedManualRideType == "LOCAL_RIDE") Color.White else Color(0xFF94A3B8),
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 13.sp
                                     )
-                                    Spacer(modifier = Modifier.width(2.dp))
-                                    Text("KM", color = brandRed, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text(
+                                        text = "Base ₹${manualBaseFareInput.ifBlank { tripState.baseFare.toInt().toString() }}",
+                                        color = if (selectedManualRideType == "LOCAL_RIDE") Color.White else Color(0xFF64748B),
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 10.sp
+                                    )
                                 }
                             }
-                        }
 
-                        // Wait Time Box
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .background(MainFareCardSurface, RoundedCornerShape(20.dp))
-                                .border(1.dp, MainFareCardBorder, RoundedCornerShape(20.dp))
-                                .padding(12.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("WAIT TIME", color = brandRed, fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 0.5.sp)
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Row(verticalAlignment = Alignment.Bottom) {
-                                    val formattedWait = formatDuration(tripState.waitingSeconds).substring(3)
+                            // HOURLY Tab
+                            Surface(
+                                color = if (selectedManualRideType == "HOURLY_RENTAL") brandRed else Color.Transparent,
+                                shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { selectedManualRideType = "HOURLY_RENTAL" }
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(vertical = 8.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
                                     Text(
-                                        text = formattedWait,
-                                        color = Color.White,
-                                        fontSize = 20.sp,
-                                        fontWeight = FontWeight.Black
+                                        text = "HOURLY",
+                                        color = if (selectedManualRideType == "HOURLY_RENTAL") Color.White else Color(0xFF94A3B8),
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 13.sp
                                     )
-                                    Spacer(modifier = Modifier.width(2.dp))
-                                    Text("MIN", color = brandRed, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text(
+                                        text = "₹350/hr",
+                                        color = if (selectedManualRideType == "HOURLY_RENTAL") Color.White else Color(0xFF64748B),
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 10.sp
+                                    )
+                                }
+                            }
+
+                            // OUTSTATION Tab
+                            Surface(
+                                color = if (selectedManualRideType == "OUTSTATION") brandRed else Color.Transparent,
+                                shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { selectedManualRideType = "OUTSTATION" }
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(vertical = 8.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        text = "OUTSTATION",
+                                        color = if (selectedManualRideType == "OUTSTATION") Color.White else Color(0xFF94A3B8),
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 13.sp
+                                    )
+                                    Text(
+                                        text = "₹18/km",
+                                        color = if (selectedManualRideType == "OUTSTATION") Color.White else Color(0xFF64748B),
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 10.sp
+                                    )
+                                }
+                            }
+
+                            // Quick Settings / Tariff Toggle Icon Button
+                            Surface(
+                                color = Color.White,
+                                shape = CircleShape,
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clickable { showSettingsPinModal = true }
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.Tune, contentDescription = "Custom Tariff", tint = brandRed, modifier = Modifier.size(18.dp))
                                 }
                             }
                         }
                     }
 
-                    // Extra Charges Trigger Card (Toll, Permit, Parking)
-                    if (tripState.status == TripStatus.RUNNING || tripState.status == TripStatus.PAUSED) {
-                        Surface(
-                            color = MainFareCardSurface,
-                            shape = RoundedCornerShape(16.dp),
-                            border = BorderStroke(1.dp, MainFareCardBorder),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 16.dp)
-                                .clickable { showExtraChargesModal = true }
-                                .testTag("btn_add_extra_charges")
-                        ) {
+                    // MAIN FARE METER READOUT BOX (DEEP DARK CHARCOAL NAVY)
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1527)),
+                        shape = RoundedCornerShape(24.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(20.dp)) {
+                            // Top status header line inside meter box
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Column {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            imageVector = Icons.Default.ReceiptLong,
-                                            contentDescription = null,
-                                            tint = brandRed,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(
-                                            text = "EXTRA CHARGES (Toll/Permit/Parking)",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.White.copy(alpha = 0.9f)
-                                        )
-                                    }
-                                    val totalExtra = tripState.tollCharges + tripState.permitCharges + tripState.parkingCharges
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(10.dp)
+                                            .clip(CircleShape)
+                                            .background(if (tripState.status == TripStatus.RUNNING) brandRed else Color(0xFF94A3B8))
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = "Toll: ${tripState.currency}${tripState.tollCharges.toInt()} | Permit: ${tripState.currency}${tripState.permitCharges.toInt()} | Parking: ${tripState.currency}${tripState.parkingCharges.toInt()} (Total: ${tripState.currency}${totalExtra.toInt()})",
+                                        text = when (tripState.status) {
+                                            TripStatus.RUNNING -> "HIRED • RIDE IN PROGRESS"
+                                            TripStatus.PAUSED -> "PAUSED • METER HOLD"
+                                            else -> "VACANT • LOCAL READY"
+                                        },
+                                        color = Color(0xFF94A3B8),
                                         fontSize = 11.sp,
-                                        color = if (totalExtra > 0.0) brandRed else Color.LightGray,
-                                        fontWeight = if (totalExtra > 0.0) FontWeight.Bold else FontWeight.Normal,
-                                        modifier = Modifier.padding(top = 2.dp)
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 0.5.sp
                                     )
                                 }
 
-                                Icon(
-                                    imageVector = Icons.Default.Edit,
-                                    contentDescription = "Edit Extra Charges",
-                                    tint = brandRed,
-                                    modifier = Modifier.size(20.dp)
+                                Surface(
+                                    color = Color(0xFF064E3B),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(Icons.Default.Satellite, contentDescription = null, tint = Color(0xFF34D399), modifier = Modifier.size(12.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("GPS LIVE", color = Color(0xFF34D399), fontWeight = FontWeight.Black, fontSize = 10.sp)
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // Center giant fare display
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = tripState.currency,
+                                    color = brandRed,
+                                    fontSize = 32.sp,
+                                    fontWeight = FontWeight.Black,
+                                    modifier = Modifier.padding(end = 6.dp)
                                 )
+                                Text(
+                                    text = String.format(Locale.US, "%.2f", tripState.currentFare),
+                                    color = Color.White,
+                                    fontSize = 58.sp,
+                                    fontWeight = FontWeight.Black,
+                                    modifier = Modifier.testTag("fare_text")
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+                            HorizontalDivider(color = Color(0xFF1E293B))
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // Bottom stats row inside meter box
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row {
+                                    Text("Base: ", color = Color(0xFF94A3B8), fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                                    Text("${tripState.currency}${String.format(Locale.US, "%.2f", tripState.baseFare)}", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Row {
+                                    Text("Dist: ", color = Color(0xFF94A3B8), fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                                    Text("${tripState.currency}${String.format(Locale.US, "%.2f", tripState.distanceKm * tripState.farePerKm)}", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Row {
+                                    Text("Wait: ", color = Color(0xFF94A3B8), fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                                    Text("${tripState.currency}${String.format(Locale.US, "%.2f", (tripState.waitingSeconds / 60.0) * tripState.waitFarePerMin)}", color = brandRed, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
                     }
-                }
-            }
 
-            // TRIP CATEGORY SELECTOR FOR MANUAL METER
-            if (tripState.status == TripStatus.IDLE || tripState.status == TripStatus.FINISHED) {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    shape = RoundedCornerShape(20.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 6.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    // 2x2 GRID STATISTICS CARDS
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 14.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text(
-                            text = "SELECT TRIP CATEGORY",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Black,
-                            color = brandRed,
-                            letterSpacing = 1.0.sp
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        // Card 1: SPEED
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            shape = RoundedCornerShape(20.dp),
+                            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                            modifier = Modifier.weight(1f)
                         ) {
-                            val modes = listOf(
-                                "LOCAL_RIDE" to "🚕 Local",
-                                "OUTSTATION" to "🛣️ Outstation",
-                                "HOURLY_RENTAL" to "⏱️ Hourly"
-                            )
-                            modes.forEach { (typeKey, label) ->
-                                val isSelected = selectedManualRideType == typeKey
-                                FilterChip(
-                                    selected = isSelected,
-                                    onClick = { selectedManualRideType = typeKey },
-                                    label = {
-                                        Text(
-                                            text = label,
-                                            fontWeight = if (isSelected) FontWeight.Black else FontWeight.Bold,
-                                            fontSize = 12.sp,
-                                            color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = brandRed,
-                                        containerColor = MaterialTheme.colorScheme.surfaceVariant
-                                    ),
-                                    shape = RoundedCornerShape(12.dp),
-                                    modifier = Modifier.weight(1f)
-                                )
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Speed, contentDescription = null, tint = brandRed, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("SPEED", color = Color(0xFF64748B), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Row(verticalAlignment = Alignment.Bottom) {
+                                    Text(
+                                        text = String.format(Locale.US, "%.1f", tripState.speedKmH),
+                                        color = Color(0xFF0F172A),
+                                        fontSize = 22.sp,
+                                        fontWeight = FontWeight.Black
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("KM/h", color = Color(0xFF64748B), fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 2.dp))
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text("Max 0.0", color = Color(0xFF94A3B8), fontSize = 10.sp)
                             }
                         }
 
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), modifier = Modifier.padding(vertical = 4.dp))
+                        // Card 2: DIST
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            shape = RoundedCornerShape(20.dp),
+                            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Navigation, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("DIST", color = Color(0xFF64748B), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Row(verticalAlignment = Alignment.Bottom) {
+                                    Text(
+                                        text = String.format(Locale.US, "%.2f", tripState.distanceKm),
+                                        color = Color(0xFF0F172A),
+                                        fontSize = 22.sp,
+                                        fontWeight = FontWeight.Black
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("KM", color = Color(0xFF10B981), fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 2.dp))
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text("GPS Live", color = Color(0xFF94A3B8), fontSize = 10.sp)
+                            }
+                        }
+                    }
 
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        // Card 3: TIME
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            shape = RoundedCornerShape(20.dp),
+                            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Schedule, contentDescription = null, tint = Color(0xFF64748B), modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("TIME", color = Color(0xFF64748B), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = formatDuration(tripState.durationSeconds).substring(3),
+                                    color = Color(0xFF0F172A),
+                                    fontSize = 22.sp,
+                                    fontWeight = FontWeight.Black
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text("Duration", color = Color(0xFF94A3B8), fontSize = 10.sp)
+                            }
+                        }
+
+                        // Card 4: WAIT
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            shape = RoundedCornerShape(20.dp),
+                            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Sensors, contentDescription = null, tint = brandRed, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("WAIT", color = Color(0xFF64748B), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = formatDuration(tripState.waitingSeconds).substring(3),
+                                    color = brandRed,
+                                    fontSize = 22.sp,
+                                    fontWeight = FontWeight.Black
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text("Stationary", color = Color(0xFF94A3B8), fontSize = 10.sp)
+                            }
+                        }
+                    }
+
+                    // ADD-ON CHARGES ACCORDION ROW
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        shape = RoundedCornerShape(16.dp),
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp)
+                            .clickable { showExtraChargesModal = true }
+                            .testTag("btn_add_extra_charges")
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.AddCircleOutline, contentDescription = null, tint = brandRed, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Add-on Charges (Tolls / Permit / Parking)",
+                                    color = Color(0xFF334155),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                            Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, tint = Color(0xFF64748B), modifier = Modifier.size(18.dp))
+                        }
+                    }
+
+                    // MAIN VIBRANT RED ACTION BUTTON BAR
+                    Button(
+                        onClick = {
+                            if (tripState.status == TripStatus.IDLE || tripState.status == TripStatus.FINISHED) {
+                                otpInputText = ""
+                                isOtpError = false
+                                showMasterOtpModal = true
+                            } else {
+                                val finalFareToSave = if (tripState.currentFare > 0.0) tripState.currentFare else tripState.baseFare
+                                activeClaimedTrip?.id?.let { tripId ->
+                                    pendingTripsViewModel.completeClaimedTrip(tripId, finalFareToSave)
+                                }
+                                dispatchViewModel.finishActiveTrip(finalFareToSave)
+                                viewModel.stopTrip()
+                                if (driverProfile.isEmergencyOneTime) {
+                                    dispatchViewModel.logoutEmergencyDriver()
+                                    Toast.makeText(
+                                        context,
+                                        "⚡ Emergency One-Time Session Completed. Profile logged out.",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = brandRed),
+                        shape = RoundedCornerShape(32.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(58.dp)
+                            .padding(top = 14.dp)
+                            .testTag(if (tripState.status == TripStatus.IDLE || tripState.status == TripStatus.FINISHED) "start_trip_button" else "stop_trip_button")
+                    ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = "CUSTOM TARIFF RATES",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                letterSpacing = 0.8.sp
-                            )
-                            Text(
-                                text = if (selectedManualRideType == "HOURLY_RENTAL") "Per Hour Billing" else if (selectedManualRideType == "OUTSTATION") "Return Surcharge Applied" else "Standard Fare",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = brandRed
-                            )
-                        }
-
-                        val tfColors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = brandRed,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-                            focusedLabelColor = brandRed,
-                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                            focusedContainerColor = MaterialTheme.colorScheme.surface,
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surface
-                        )
-
-                        when (selectedManualRideType) {
-                            "LOCAL_RIDE" -> {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    OutlinedTextField(
-                                        value = manualBaseFareInput,
-                                        onValueChange = { if (activeClaimedTrip == null) manualBaseFareInput = it },
-                                        readOnly = activeClaimedTrip != null,
-                                        label = { Text(if (activeClaimedTrip != null) "🔒 Locked Base (${tripState.currency})" else "Base Fare (${tripState.currency})", fontSize = 11.sp) },
-                                        placeholder = { Text(String.format(Locale.US, "%.0f", tripState.baseFare), fontSize = 12.sp) },
-                                        leadingIcon = { Icon(Icons.Default.MonetizationOn, contentDescription = null, tint = brandRed, modifier = Modifier.size(18.dp)) },
-                                        trailingIcon = { if (activeClaimedTrip != null) Icon(Icons.Default.Lock, contentDescription = "Locked by Dispatch", tint = brandRed) },
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                        singleLine = true,
-                                        colors = tfColors,
-                                        modifier = Modifier.weight(1f).testTag("home_input_local_base_fare")
-                                    )
-
-                                    OutlinedTextField(
-                                        value = manualRatePerKmInput,
-                                        onValueChange = { if (activeClaimedTrip == null) manualRatePerKmInput = it },
-                                        readOnly = activeClaimedTrip != null,
-                                        label = { Text(if (activeClaimedTrip != null) "🔒 Locked Rate/KM (${tripState.currency})" else "Rate / KM (${tripState.currency})", fontSize = 11.sp) },
-                                        placeholder = { Text(String.format(Locale.US, "%.0f", tripState.farePerKm), fontSize = 12.sp) },
-                                        leadingIcon = { Icon(Icons.Default.Speed, contentDescription = null, tint = brandRed, modifier = Modifier.size(18.dp)) },
-                                        trailingIcon = { if (activeClaimedTrip != null) Icon(Icons.Default.Lock, contentDescription = "Locked by Dispatch", tint = brandRed) },
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                        singleLine = true,
-                                        colors = tfColors,
-                                        modifier = Modifier.weight(1f).testTag("home_input_local_per_km")
-                                    )
-                                }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = if (tripState.status == TripStatus.IDLE || tripState.status == TripStatus.FINISHED) Icons.Default.PlayArrow else Icons.Default.Stop,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(26.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = if (activeClaimedTrip != null) "🔒 Tariff strictly locked to Dispatch Trip (Base ₹${activeClaimedTrip?.baseFare} + Rate ₹${activeClaimedTrip?.perKmFare}/KM)." else "💡 Local Tariff: Default Base ${tripState.currency}${String.format(Locale.US, "%.0f", tripState.baseFare)}, Rate ${tripState.currency}${String.format(Locale.US, "%.0f", tripState.farePerKm)}/KM. Enter custom values to override.",
-                                    fontSize = 10.sp,
-                                    color = if (activeClaimedTrip != null) brandRed else Color.DarkGray,
-                                    fontWeight = if (activeClaimedTrip != null) FontWeight.Bold else FontWeight.Normal,
-                                    modifier = Modifier.padding(start = 2.dp)
+                                    text = if (tripState.status == TripStatus.IDLE || tripState.status == TripStatus.FINISHED) "START THE RIDE" else "COMPLETE THE TRIP",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 15.sp,
+                                    letterSpacing = 1.sp
                                 )
                             }
 
-                            "OUTSTATION" -> {
+                            Surface(
+                                color = Color(0xFF991B1B),
+                                shape = RoundedCornerShape(14.dp)
+                            ) {
                                 Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    OutlinedTextField(
-                                        value = manualDriverBetaInput,
-                                        onValueChange = { manualDriverBetaInput = it },
-                                        label = { Text("Driver Beta / Base (${tripState.currency})", fontSize = 11.sp) },
-                                        placeholder = { Text("500", fontSize = 12.sp) },
-                                        leadingIcon = { Icon(Icons.Default.Payments, contentDescription = null, tint = brandRed, modifier = Modifier.size(18.dp)) },
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                        singleLine = true,
-                                        colors = tfColors,
-                                        modifier = Modifier.weight(1f).testTag("home_input_outstation_bata")
-                                    )
-
-                                    OutlinedTextField(
-                                        value = manualRatePerKmInput,
-                                        onValueChange = { manualRatePerKmInput = it },
-                                        label = { Text("Per KM Rate (${tripState.currency})", fontSize = 11.sp) },
-                                        placeholder = { Text("15", fontSize = 12.sp) },
-                                        leadingIcon = { Icon(Icons.Default.Speed, contentDescription = null, tint = brandRed, modifier = Modifier.size(18.dp)) },
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                        singleLine = true,
-                                        colors = tfColors,
-                                        modifier = Modifier.weight(1f).testTag("home_input_outstation_per_km")
-                                    )
+                                    Icon(Icons.Default.Lock, contentDescription = null, tint = Color.White, modifier = Modifier.size(11.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("OTP VERIFIED", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 9.sp)
                                 }
-                                Text(
-                                    text = "💡 Outstation Tariff: Default Driver Beta ${tripState.currency}500 + Rate ${tripState.currency}15/KM. Enter custom values to set custom price.",
-                                    fontSize = 10.sp,
-                                    color = Color.DarkGray,
-                                    modifier = Modifier.padding(start = 2.dp)
-                                )
-                            }
-
-                            "HOURLY_RENTAL" -> {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    OutlinedTextField(
-                                        value = manualRatePerHourInput,
-                                        onValueChange = { manualRatePerHourInput = it },
-                                        label = { Text("Hourly Rate (${tripState.currency}/Hr)", fontSize = 11.sp) },
-                                        placeholder = { Text("375", fontSize = 12.sp) },
-                                        leadingIcon = { Icon(Icons.Default.Schedule, contentDescription = null, tint = brandRed, modifier = Modifier.size(18.dp)) },
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                        singleLine = true,
-                                        colors = tfColors,
-                                        modifier = Modifier.weight(1f).testTag("home_input_hourly_rate")
-                                    )
-
-                                    OutlinedTextField(
-                                        value = manualRatePerKmInput,
-                                        onValueChange = { manualRatePerKmInput = it },
-                                        label = { Text("Extra Rate/KM (${tripState.currency})", fontSize = 11.sp) },
-                                        placeholder = { Text("20", fontSize = 12.sp) },
-                                        leadingIcon = { Icon(Icons.Default.Speed, contentDescription = null, tint = brandRed, modifier = Modifier.size(18.dp)) },
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                        singleLine = true,
-                                        colors = tfColors,
-                                        modifier = Modifier.weight(1f).testTag("home_input_hourly_extra_per_km")
-                                    )
-                                }
-                                Text(
-                                    text = "💡 Hourly Rental: Default ${tripState.currency}375/Hr (10km free/hr) + Extra ${tripState.currency}20/KM. Enter custom values to set custom price.",
-                                    fontSize = 10.sp,
-                                    color = Color.DarkGray,
-                                    modifier = Modifier.padding(start = 2.dp)
-                                )
                             }
                         }
                     }
                 }
             }
 
-            // ACTION BUTTONS (START METER / PAUSE / END TRIP)
-            Box(
+            // LIVE ROUTE MAP VIEW (AT BOTTOM OF MAIN CARD)
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                shape = RoundedCornerShape(24.dp),
+                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(64.dp)
-                    .padding(vertical = 4.dp)
+                    .padding(vertical = 8.dp)
             ) {
-                AnimatedContent(
-                    targetState = tripState.status,
-                    transitionSpec = {
-                        slideInVertically { height -> height } + fadeIn() togetherWith
-                                slideOutVertically { height -> -height } + fadeOut()
-                    },
-                    label = "MainActionControls"
-                ) { status ->
-                    when (status) {
-                        TripStatus.IDLE, TripStatus.FINISHED -> {
-                            Button(
-                                onClick = {
-                                    otpInputText = ""
-                                    isOtpError = false
-                                    showMasterOtpModal = true
-                                },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = brandRed,
-                                    contentColor = Color.White
-                                ),
-                                shape = RoundedCornerShape(32.dp),
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .testTag("start_trip_button")
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-                                    Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(28.dp), tint = Color.White)
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "START THE RIDE",
-                                        fontSize = 17.sp,
-                                        fontWeight = FontWeight.Black,
-                                        letterSpacing = 1.5.sp
-                                    )
-                                }
-                            }
-                        }
-
-                        TripStatus.RUNNING, TripStatus.PAUSED -> {
-                            Button(
-                                onClick = {
-                                    val finalFareToSave = if (tripState.currentFare > 0.0) tripState.currentFare else tripState.baseFare
-                                    activeClaimedTrip?.id?.let { tripId ->
-                                        pendingTripsViewModel.completeClaimedTrip(tripId, finalFareToSave)
-                                    }
-                                    dispatchViewModel.finishActiveTrip(finalFareToSave)
-                                    viewModel.stopTrip()
-                                    if (driverProfile.isEmergencyOneTime) {
-                                        dispatchViewModel.logoutEmergencyDriver()
-                                        android.widget.Toast.makeText(
-                                            context,
-                                            "⚡ Emergency One-Time Session Completed. Profile logged out. Contact Master Admin to set up full profile.",
-                                            android.widget.Toast.LENGTH_LONG
-                                        ).show()
-                                    }
-                                },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = brandRed,
-                                    contentColor = Color.White
-                                ),
-                                shape = RoundedCornerShape(32.dp),
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .testTag("stop_trip_button")
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-                                    Icon(Icons.Default.Stop, contentDescription = null, tint = Color.White, modifier = Modifier.size(28.dp))
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("COMPLETE THE TRIP", fontWeight = FontWeight.Black, fontSize = 17.sp, letterSpacing = 1.5.sp)
-                                }
-                            }
-                        }
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "🔴 GPS MAP LIVE",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Black,
+                            color = brandRed,
+                            letterSpacing = 1.sp
+                        )
+                        Text(
+                            text = if (tripState.latitude != null) "Accurate GPS tracking" else "Acquiring satellites...",
+                            fontSize = 10.sp,
+                            color = Color(0xFF64748B)
+                        )
                     }
+
+                    TripMapView(
+                        tripState = tripState,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(180.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                    )
                 }
             }
 
