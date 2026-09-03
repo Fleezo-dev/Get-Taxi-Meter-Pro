@@ -89,7 +89,7 @@ fun AdminAuthPinModal(
                 )
 
                 Text(
-                    text = "Enter Master Admin PIN (2903 / 1005 / 1974) for full control, or Regular Admin PIN (2604 / 1404) for dispatch mode.",
+                    text = "Enter your authorized Admin PIN for full control or dispatch mode.",
                     fontSize = 12.sp,
                     color = Color(0xFF616161),
                     textAlign = TextAlign.Center,
@@ -126,7 +126,7 @@ fun AdminAuthPinModal(
 
                 if (isErrorVisible) {
                     Text(
-                        text = "❌ Invalid Admin Password! Try 2903, 1005, or 2604.",
+                        text = "❌ Invalid Admin Password! Please enter a valid authorized PIN.",
                         color = redBrand,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,

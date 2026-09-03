@@ -604,12 +604,13 @@ fun HomeMeterScreen(
 
     // DRIVER MODE - TAXI METER
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(Color.White)
-                    .statusBarsPadding()
+                    .windowInsetsPadding(WindowInsets.statusBars)
             ) {
                 // Top Header Row
                 Row(
@@ -772,7 +773,7 @@ fun HomeMeterScreen(
                                         Spacer(modifier = Modifier.width(10.dp))
                                         Column {
                                             Text("Admin Login", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A), fontSize = 13.sp)
-                                            Text("PIN: 1005 / 1404", fontSize = 10.sp, color = Color(0xFF64748B))
+                                            Text("Dispatch & Admin Access", fontSize = 10.sp, color = Color(0xFF64748B))
                                         }
                                     }
                                 },
@@ -988,94 +989,6 @@ fun HomeMeterScreen(
                 }
             }
 
-            // DRIVER ASSIGNED ID BANNER CARD
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(18.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 12.dp, bottom = 4.dp)
-                    .clickable { onNavigateToProfile() }
-            ) {
-                Row(
-                    modifier = Modifier
-                        .padding(14.dp)
-                        .fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        // DRIVER AVATAR
-                        Box(
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFFFFEBEE))
-                                .border(1.5.dp, brandRed, CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (driverProfile.photoUri.isNotBlank()) {
-                                val imageModel = if (driverProfile.photoUri.startsWith("data:image/jpeg;base64,")) {
-                                    val b64 = driverProfile.photoUri.substringAfter("base64,")
-                                    try {
-                                        android.util.Base64.decode(b64, android.util.Base64.DEFAULT)
-                                    } catch (e: Exception) {
-                                        driverProfile.photoUri
-                                    }
-                                } else {
-                                    driverProfile.photoUri
-                                }
-                                AsyncImage(
-                                    model = imageModel,
-                                    contentDescription = "My Profile Photo",
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .clip(CircleShape),
-                                    contentScale = ContentScale.Crop
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Default.Person,
-                                    contentDescription = "Profile",
-                                    tint = brandRed,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
-                            Text(
-                                text = driverProfile.driverName,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "Plate: ${driverProfile.vehiclePlate} • ${driverProfile.phoneNumber}",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-
-                    Surface(
-                        color = Color(0xFFFFD600),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(
-                            text = driverProfile.driverId,
-                            fontWeight = FontWeight.Black,
-                            fontSize = 13.sp,
-                            color = Color.Black,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                        )
-                    }
-                }
-            }
-
             // DRIVER SUSPENSION ALERT BANNER
             if (!driverProfile.isActive) {
                 Card(
@@ -1084,7 +997,7 @@ fun HomeMeterScreen(
                     border = BorderStroke(1.5.dp, Color(0xFFEF4444)),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 12.dp)
+                        .padding(bottom = 8.dp)
                 ) {
                     Row(
                         modifier = Modifier.padding(14.dp),
@@ -1114,221 +1027,298 @@ fun HomeMeterScreen(
                 }
             }
 
-            // PENDING TRIPS DISPATCH BOARD / CLAIMED TRIP ACTIVE CARD (SUPABASE CLOUD)
-            // Hidden once the ride starts to conserve screen real estate
+            // SIDE-BY-SIDE CARDS: Master Admin Card & Pending Dispatch Trips Card in a single horizontal Row
             val isRideActive = tripState.status == TripStatus.RUNNING || tripState.status == TripStatus.PAUSED
             if (!isRideActive) {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    shape = RoundedCornerShape(20.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
-                    border = BorderStroke(1.dp, if (activeClaimedTrip != null) Color(0xFF10B981) else brandRed.copy(alpha = 0.4f)),
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 6.dp)
-                        .testTag("pending_trips_dispatch_card")
+                        .padding(top = 10.dp, bottom = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(
-                        modifier = Modifier.padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    // LEFT CARD: Master Admin / Driver Profile Card
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        shape = RoundedCornerShape(16.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)),
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { onNavigateToProfile() }
+                            .testTag("master_admin_profile_card")
                     ) {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier
+                                .padding(horizontal = 10.dp, vertical = 10.dp)
+                                .fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                modifier = Modifier.weight(1f)
+                            // Driver/Master Admin Avatar
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFFFFEBEE))
+                                    .border(1.5.dp, brandRed, CircleShape),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .clip(CircleShape)
-                                        .background(if (activeClaimedTrip != null) Color(0xFF10B981).copy(alpha = 0.2f) else brandRed.copy(alpha = 0.15f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
+                                if (driverProfile.photoUri.isNotBlank()) {
+                                    val imageModel = if (driverProfile.photoUri.startsWith("data:image/jpeg;base64,")) {
+                                        val b64 = driverProfile.photoUri.substringAfter("base64,")
+                                        try {
+                                            android.util.Base64.decode(b64, android.util.Base64.DEFAULT)
+                                        } catch (e: Exception) {
+                                            driverProfile.photoUri
+                                        }
+                                    } else {
+                                        driverProfile.photoUri
+                                    }
+                                    AsyncImage(
+                                        model = imageModel,
+                                        contentDescription = "Avatar",
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .clip(CircleShape),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                } else {
                                     Icon(
-                                        imageVector = if (activeClaimedTrip != null) Icons.Default.CheckCircle else Icons.Default.CloudDownload,
-                                        contentDescription = null,
-                                        tint = if (activeClaimedTrip != null) Color(0xFF10B981) else brandRed,
+                                        imageVector = Icons.Default.Person,
+                                        contentDescription = "Profile",
+                                        tint = brandRed,
                                         modifier = Modifier.size(20.dp)
                                     )
                                 }
-                                Column {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(
-                                            text = if (activeClaimedTrip != null) "CLAIMED TRIP ACTIVE" else "PENDING DISPATCH TRIPS",
-                                            fontWeight = FontWeight.Black,
-                                            fontSize = 12.sp,
-                                            letterSpacing = 0.5.sp,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                        if (activeClaimedTrip == null && pendingTripsList.isNotEmpty()) {
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Surface(
-                                                color = brandRed,
-                                                shape = CircleShape
-                                            ) {
-                                                Text(
-                                                    text = "${pendingTripsList.size}",
-                                                    color = Color.White,
-                                                    fontSize = 10.sp,
-                                                    fontWeight = FontWeight.Black,
-                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                )
-                                            }
-                                        }
-                                    }
-                                    Text(
-                                        text = if (activeClaimedTrip != null) "Custom base & km rates loaded into meter" else if (pendingTripsList.isNotEmpty()) "${pendingTripsList.size} trip(s) available to claim" else "Bash Cloud Live • No pending trips",
-                                        fontSize = 11.sp,
-                                        color = if (activeClaimedTrip != null) Color(0xFF10B981) else Color.Gray,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                }
                             }
 
-                            Button(
-                                onClick = { showPendingTripsModal = true },
-                                colors = ButtonDefaults.buttonColors(containerColor = brandRed),
-                                shape = RoundedCornerShape(12.dp),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                                modifier = Modifier.testTag("open_pending_trips_button")
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = if (driverProfile.driverName.isNotBlank()) driverProfile.driverName else "Master Admin",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = if (driverProfile.vehiclePlate.isNotBlank()) driverProfile.vehiclePlate else "ID: ${driverProfile.driverId}",
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+
+                    // RIGHT CARD: Pending Dispatch Trips Card
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        shape = RoundedCornerShape(16.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+                        border = BorderStroke(1.dp, if (activeClaimedTrip != null) Color(0xFF10B981) else brandRed.copy(alpha = 0.35f)),
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { showPendingTripsModal = true }
+                            .testTag("pending_trips_dispatch_card")
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .padding(horizontal = 10.dp, vertical = 10.dp)
+                                .fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(if (activeClaimedTrip != null) Color(0xFF10B981).copy(alpha = 0.15f) else brandRed.copy(alpha = 0.12f)),
+                                contentAlignment = Alignment.Center
                             ) {
+                                Icon(
+                                    imageVector = if (activeClaimedTrip != null) Icons.Default.CheckCircle else Icons.Default.CloudDownload,
+                                    contentDescription = null,
+                                    tint = if (activeClaimedTrip != null) Color(0xFF10B981) else brandRed,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            Column(modifier = Modifier.weight(1f)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
-                                        text = if (pendingTripsList.isNotEmpty()) "VIEW (${pendingTripsList.size})" else "VIEW BOARD",
-                                        fontSize = 11.sp,
+                                        text = if (activeClaimedTrip != null) "CLAIMED TRIP" else "DISPATCH TRIPS",
                                         fontWeight = FontWeight.Black,
-                                        color = Color.White
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                     )
+                                    if (activeClaimedTrip == null && pendingTripsList.isNotEmpty()) {
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Surface(
+                                            color = brandRed,
+                                            shape = CircleShape
+                                        ) {
+                                            Text(
+                                                text = "${pendingTripsList.size}",
+                                                color = Color.White,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Black,
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                                Text(
+                                    text = if (activeClaimedTrip != null) "Loaded in meter" else if (pendingTripsList.isNotEmpty()) "${pendingTripsList.size} open • View" else "Cloud live • View",
+                                    fontSize = 10.sp,
+                                    color = if (activeClaimedTrip != null) Color(0xFF10B981) else Color.Gray,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // If active claimed trip exists, show customer & tariff details card
+                if (activeClaimedTrip != null) {
+                    val trip = activeClaimedTrip!!
+                    Surface(
+                        color = Color(0xFF10B981).copy(alpha = 0.1f),
+                        shape = RoundedCornerShape(14.dp),
+                        border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.3f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Customer: ${trip.customerPhone} ${trip.customerName?.let { "($it)" } ?: ""}",
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                if (!trip.pickupLocation.isNullOrBlank() || !trip.dropLocation.isNullOrBlank()) {
+                                    Text(
+                                        text = "${trip.pickupLocation ?: "Pickup"} ➔ ${trip.dropLocation ?: "Drop"}",
+                                        fontSize = 11.sp,
+                                        color = Color.Gray
+                                    )
+                                }
+                                Text(
+                                    text = "Tariff Loaded: Base ₹${trip.baseFare} | Rate ₹${trip.perKmFare}/KM",
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 11.sp,
+                                    color = brandRed
+                                )
+                            }
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Button(
+                                    onClick = {
+                                        try {
+                                            val cleanNum = trip.customerPhone.trim().replace(" ", "")
+                                            val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$cleanNum")).apply {
+                                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                            }
+                                            context.startActivity(dialIntent)
+                                        } catch (e: Exception) {
+                                            Toast.makeText(context, "Cannot open dialer: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                    modifier = Modifier.testTag("call_claimed_customer_button")
+                                ) {
+                                    Icon(Icons.Default.Phone, contentDescription = "Call", tint = Color.White, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("CALL", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                }
+
+                                Surface(
+                                    color = Color(0xFF10B981).copy(alpha = 0.2f),
+                                    shape = RoundedCornerShape(8.dp),
+                                    border = BorderStroke(1.dp, Color(0xFF10B981))
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(Icons.Default.Lock, contentDescription = "Locked Active Trip", tint = Color(0xFF10B981), modifier = Modifier.size(12.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("LOCKED", color = Color(0xFF10B981), fontWeight = FontWeight.Black, fontSize = 10.sp)
+                                    }
                                 }
                             }
                         }
-
-                        if (activeClaimedTrip != null) {
-                            val trip = activeClaimedTrip!!
-                            Surface(
-                                color = Color(0xFF10B981).copy(alpha = 0.1f),
-                                shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.3f)),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(10.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = "Customer: ${trip.customerPhone} ${trip.customerName?.let { "($it)" } ?: ""}",
-                                            fontWeight = FontWeight.Black,
-                                            fontSize = 12.sp,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                        if (!trip.pickupLocation.isNullOrBlank() || !trip.dropLocation.isNullOrBlank()) {
-                                            Text(
-                                                text = "${trip.pickupLocation ?: "Pickup"} ➔ ${trip.dropLocation ?: "Drop"}",
-                                                fontSize = 11.sp,
-                                                color = Color.Gray
-                                            )
-                                        }
-                                        Text(
-                                            text = "Tariff Loaded: Base ₹${trip.baseFare} | Rate ₹${trip.perKmFare}/KM",
-                                            fontWeight = FontWeight.Black,
-                                            fontSize = 11.sp,
-                                            color = brandRed
-                                        )
-                                    }
-
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        Button(
-                                            onClick = {
-                                                try {
-                                                    val cleanNum = trip.customerPhone.trim().replace(" ", "")
-                                                    val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$cleanNum")).apply {
-                                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                                    }
-                                                    context.startActivity(dialIntent)
-                                                } catch (e: Exception) {
-                                                    Toast.makeText(context, "Cannot open dialer: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
-                                                }
-                                            },
-                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
-                                            shape = RoundedCornerShape(8.dp),
-                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                                            modifier = Modifier.testTag("call_claimed_customer_button")
-                                        ) {
-                                            Icon(Icons.Default.Phone, contentDescription = "Call", tint = Color.White, modifier = Modifier.size(14.dp))
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text("CALL", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                                        }
-
-                                        Surface(
-                                            color = Color(0xFF10B981).copy(alpha = 0.2f),
-                                            shape = RoundedCornerShape(8.dp),
-                                            border = BorderStroke(1.dp, Color(0xFF10B981))
-                                        ) {
-                                            Row(
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Icon(Icons.Default.Lock, contentDescription = "Locked Active Trip", tint = Color(0xFF10B981), modifier = Modifier.size(12.dp))
-                                                Spacer(modifier = Modifier.width(4.dp))
-                                                Text("LOCKED", color = Color(0xFF10B981), fontWeight = FontWeight.Black, fontSize = 10.sp)
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                    }
+                }
+            } else {
+                // When ride IS active, a compact driver identity banner
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    shape = RoundedCornerShape(14.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp, bottom = 4.dp)
+                        .clickable { onNavigateToProfile() }
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                            .fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Person, contentDescription = null, tint = brandRed, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "${driverProfile.driverName.ifBlank { "Master Admin" }} (${driverProfile.vehiclePlate})",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        Surface(color = Color(0xFFFFD600), shape = RoundedCornerShape(8.dp)) {
+                            Text(
+                                text = driverProfile.driverId,
+                                fontWeight = FontWeight.Black,
+                                fontSize = 11.sp,
+                                color = Color.Black,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            )
                         }
                     }
                 }
             }
 
-            // Status & GPS indicators
+            // Status indicator
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                    .padding(vertical = 6.dp),
+                horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
-                    Text(
-                        text = "GPS DIAGNOSTICS",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
-                        letterSpacing = 1.5.sp
-                    )
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(top = 2.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(8.dp)
-                                .background(
-                                    color = if (tripState.latitude != null) Color(0xFF00E676) else Color(0xFFFF5252),
-                                    shape = RoundedCornerShape(4.dp)
-                                )
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = if (tripState.latitude != null) "GPS Signal Active" else "Acquiring GPS...",
-                            color = MaterialTheme.colorScheme.onBackground,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
-
                 // Vacant / Hired badge
                 Surface(
                     color = when (tripState.status) {
@@ -1698,46 +1688,6 @@ fun HomeMeterScreen(
                                     )
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text("Stationary", color = Color(0xFF94A3B8), fontSize = 10.sp)
-                                }
-                            }
-                        }
-                    } else {
-                        // PRE-RIDE LOCK: Inactive speedometer and trackers until "Start the Ride" is pressed
-                        Surface(
-                            color = Color(0xFFF8FAFC),
-                            shape = RoundedCornerShape(16.dp),
-                            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 14.dp)
-                                .testTag("pre_ride_locked_panel")
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFFE2E8F0)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(Icons.Default.Lock, contentDescription = "Locked", tint = Color(0xFF64748B), modifier = Modifier.size(18.dp))
-                                }
-                                Column {
-                                    Text(
-                                        text = "PRE-RIDE LOCK ACTIVE",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 12.sp,
-                                        color = Color(0xFF1E293B)
-                                    )
-                                    Text(
-                                        text = "Speedometer & distance tracking will unlock upon starting trip",
-                                        fontSize = 11.sp,
-                                        color = Color(0xFF64748B)
-                                    )
                                 }
                             }
                         }
