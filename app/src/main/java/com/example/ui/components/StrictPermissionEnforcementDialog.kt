@@ -124,17 +124,19 @@ fun StrictPermissionEnforcementDialog(
         permState = checkCurrentSystemPermissions(context)
     }
 
-    if (permState.allGranted) {
+    var isDismissed by remember { mutableStateOf(false) }
+
+    if (isDismissed || permState.allGranted) {
         return
     }
 
     val brandRed = Color(0xFFE11D48)
 
     Dialog(
-        onDismissRequest = { /* Blocking modal - cannot dismiss until granted */ },
+        onDismissRequest = { isDismissed = true },
         properties = DialogProperties(
-            dismissOnBackPress = false,
-            dismissOnClickOutside = false,
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true,
             usePlatformDefaultWidth = false
         )
     ) {
@@ -158,7 +160,18 @@ fun StrictPermissionEnforcementDialog(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        IconButton(onClick = { isDismissed = true }) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close permissions dialog",
+                                tint = Color.White
+                            )
+                        }
+                    }
 
                     // Shield Header Icon
                     Box(
@@ -316,6 +329,17 @@ fun StrictPermissionEnforcementDialog(
                             color = Color(0xFF94A3B8),
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    TextButton(
+                        onClick = { isDismissed = true }
+                    ) {
+                        Text(
+                            text = "Skip / Continue to Taxi Meter",
+                            color = Color(0xFFE2E8F0),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }

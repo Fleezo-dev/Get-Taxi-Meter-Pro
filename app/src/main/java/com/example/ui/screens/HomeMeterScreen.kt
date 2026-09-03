@@ -485,84 +485,295 @@ fun HomeMeterScreen(
     // DRIVER MODE - TAXI METER
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(brandRed)
-                                .clickable {
-                                    val now = System.currentTimeMillis()
-                                    if (now - lastBrandTapTime > 2000L) {
-                                        brandTapCount = 1
-                                    } else {
-                                        brandTapCount++
-                                    }
-                                    lastBrandTapTime = now
-                                    if (brandTapCount >= 5) {
-                                        brandTapCount = 0
-                                        showAdminAuthModal = true
-                                    }
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.DirectionsCar,
-                                contentDescription = "Taxi Logo",
-                                tint = Color.White,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.width(10.dp))
-
-                        Column {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "Taxi Meter ",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 17.sp,
-                                    color = Color(0xFF0F172A)
-                                )
-                                Text(
-                                    text = "By Get Taxi",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 17.sp,
-                                    color = brandRed
-                                )
-                            }
-                            Text(
-                                text = "${driverProfile.vehiclePlate} • ${driverProfile.driverName} (${driverProfile.driverId})",
-                                fontSize = 11.sp,
-                                color = Color(0xFF64748B)
-                            )
-                        }
-                    }
-                },
-                actions = {
-                    IconButton(
-                        onClick = {
-                            settingsPinInput = ""
-                            isSettingsPinError = false
-                            showSettingsPinModal = true
-                        },
-                        modifier = Modifier.testTag("settings_button")
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White)
+            ) {
+                // Top Header Row
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Red circle icon with white taxi image
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .background(brandRed)
+                            .clickable {
+                                val now = System.currentTimeMillis()
+                                if (now - lastBrandTapTime > 2000L) {
+                                    brandTapCount = 1
+                                } else {
+                                    brandTapCount++
+                                }
+                                lastBrandTapTime = now
+                                if (brandTapCount >= 5) {
+                                    brandTapCount = 0
+                                    showAdminAuthModal = true
+                                }
+                            },
+                        contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "Settings",
-                            tint = Color(0xFF0F172A)
+                            imageVector = Icons.Default.DirectionsCar,
+                            contentDescription = "Taxi Logo",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
                         )
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.White
-                )
-            )
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Taxi Meter Pro ",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 17.sp,
+                                color = Color(0xFF0F172A)
+                            )
+                            Text(
+                                text = "By Get Taxi",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 17.sp,
+                                color = brandRed
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                color = Color.Transparent,
+                                shape = RoundedCornerShape(6.dp),
+                                border = BorderStroke(1.dp, Color(0xFF94A3B8))
+                            ) {
+                                Text(
+                                    text = "PRO",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF64748B),
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
+                        Text(
+                            text = "${driverProfile.vehiclePlate} • ${driverProfile.driverName} (${driverProfile.driverId})",
+                            fontSize = 11.sp,
+                            color = Color(0xFF64748B)
+                        )
+                    }
+                }
+
+                // Top Navigation Pills Row 1
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Meter (Selected)
+                    Surface(
+                        color = brandRed,
+                        shape = RoundedCornerShape(20.dp),
+                        modifier = Modifier.testTag("nav_meter_button")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.DirectionsCar, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text("Meter", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    }
+
+                    // History (8)
+                    Surface(
+                        color = Color.White,
+                        shape = RoundedCornerShape(20.dp),
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        modifier = Modifier
+                            .clickable { onNavigateToReceipt(allTrips.firstOrNull()?.id ?: 0) }
+                            .testTag("nav_history_button")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.History, contentDescription = null, tint = Color(0xFF64748B), modifier = Modifier.size(15.dp))
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text("History (${allTrips.size})", color = Color(0xFF475569), fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                        }
+                    }
+
+                    // Earnings
+                    Surface(
+                        color = Color.White,
+                        shape = RoundedCornerShape(20.dp),
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        modifier = Modifier
+                            .clickable { onNavigateToProfile() }
+                            .testTag("nav_earnings_button")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.TrendingUp, contentDescription = null, tint = Color(0xFF64748B), modifier = Modifier.size(15.dp))
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text("Earnings", color = Color(0xFF475569), fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.weight(1f))
+
+                    // Sun Icon Button (Toggle Dark/Light Mode)
+                    Surface(
+                        color = Color.White,
+                        shape = CircleShape,
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clickable {
+                                settingsViewModel?.let { vm ->
+                                    vm.updateIsDarkMode(!vm.isDarkMode.value)
+                                }
+                            }
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.WbSunny, contentDescription = "Toggle Light/Dark", tint = Color(0xFFD97706), modifier = Modifier.size(16.dp))
+                        }
+                    }
+
+                    // Speaker Icon Button (Audio Announcements)
+                    Surface(
+                        color = Color.White,
+                        shape = CircleShape,
+                        border = BorderStroke(1.dp, Color(0xFFFEE2E2)),
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clickable {
+                                Toast.makeText(context, "Voice announcements active", Toast.LENGTH_SHORT).show()
+                            }
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.VolumeUp, contentDescription = "Voice Audio", tint = brandRed, modifier = Modifier.size(16.dp))
+                        }
+                    }
+                }
+
+                // Top Navigation Pills Row 2
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Remote Trip
+                    Surface(
+                        color = Color(0xFFFEE2E2),
+                        shape = RoundedCornerShape(20.dp),
+                        modifier = Modifier.clickable { showPendingTripsModal = true }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.CellTower, contentDescription = null, tint = brandRed, modifier = Modifier.size(13.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Remote Trip", color = brandRed, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        }
+                    }
+
+                    // QR Code
+                    Surface(
+                        color = Color(0xFFFEF3C7),
+                        shape = RoundedCornerShape(20.dp),
+                        modifier = Modifier.clickable { onNavigateToProfile() }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.QrCodeScanner, contentDescription = null, tint = Color(0xFFD97706), modifier = Modifier.size(13.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("QR Code", color = Color(0xFFD97706), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        }
+                    }
+
+                    // DRV-001
+                    Surface(
+                        color = Color.White,
+                        shape = RoundedCornerShape(20.dp),
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        modifier = Modifier.clickable { onNavigateToProfile() }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Person, contentDescription = null, tint = brandRed, modifier = Modifier.size(13.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(driverProfile.driverId, color = Color(0xFF1E293B), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        }
+                    }
+
+                    // Device ID
+                    Surface(
+                        color = Color.White,
+                        shape = RoundedCornerShape(20.dp),
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        modifier = Modifier.clickable {
+                            Toast.makeText(context, "Device ID Active: BASH-${Build.MODEL}", Toast.LENGTH_SHORT).show()
+                        }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.VpnKey, contentDescription = null, tint = Color(0xFFD97706), modifier = Modifier.size(13.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Device ID", color = Color(0xFF1E293B), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        }
+                    }
+
+                    // Tariff
+                    Surface(
+                        color = Color.White,
+                        shape = RoundedCornerShape(20.dp),
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        modifier = Modifier.clickable { showSettingsPinModal = true }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Settings, contentDescription = null, tint = brandRed, modifier = Modifier.size(13.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Tariff", color = Color(0xFF1E293B), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        }
+                    }
+
+                    // Admin
+                    Surface(
+                        color = Color(0xFFFEE2E2),
+                        shape = RoundedCornerShape(20.dp),
+                        modifier = Modifier.clickable { showAdminAuthModal = true }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Lock, contentDescription = null, tint = brandRed, modifier = Modifier.size(13.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Admin", color = brandRed, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        }
+                    }
+                }
+            }
         },
         containerColor = Color(0xFFF1F5F9)
     ) { innerPadding ->
