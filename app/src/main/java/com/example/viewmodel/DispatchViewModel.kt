@@ -75,6 +75,9 @@ class DispatchViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun isDriverIdEditable(driverId: String): Boolean {
+        if (_authenticatedAdminRole.value == AdminRole.MASTER_ADMIN || _isDispatcherAuthenticated.value) {
+            return true
+        }
         val num = driverId.filter { it.isDigit() }.toIntOrNull()
         return num != null && num in 1..10
     }

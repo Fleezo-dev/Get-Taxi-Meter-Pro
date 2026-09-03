@@ -1254,7 +1254,12 @@ private fun TripHistoryCardItem(
                         }
 
                         if (trip.status == "completed") {
-                            val fFare = trip.finalFare ?: 0.0
+                            val distKm = (trip.totalDistanceKm ?: 0.0).let { if (it > 0.0) it else 1.0 }
+                            val waitMin = trip.waitTimeMinutes ?: 0.0
+                            val rawFare = trip.finalFare ?: 0.0
+                            val fFare = if (rawFare > 0.0) rawFare else {
+                                (trip.baseFare + distKm * trip.perKmFare + waitMin * 2.0).coerceAtLeast(trip.baseFare)
+                            }
                             val comm = trip.commissionAmount ?: (fFare * 0.10)
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -1326,8 +1331,23 @@ private fun CommissionTabContent(
     redBrand: Color
 ) {
     val completed = trips.filter { it.status == "completed" }
-    val totalRevenue = completed.sumOf { it.finalFare ?: 0.0 }
-    val totalCommission = completed.sumOf { it.commissionAmount ?: ((it.finalFare ?: 0.0) * 0.10) }
+    val totalRevenue = completed.sumOf { 
+        val rawF = it.finalFare ?: 0.0
+        if (rawF > 0.0) rawF else {
+            val dist = (it.totalDistanceKm ?: 0.0).let { d -> if (d > 0.0) d else 1.0 }
+            val wait = it.waitTimeMinutes ?: 0.0
+            (it.baseFare + dist * it.perKmFare + wait * 2.0).coerceAtLeast(it.baseFare)
+        }
+    }
+    val totalCommission = completed.sumOf { 
+        val rawF = it.finalFare ?: 0.0
+        val effFare = if (rawF > 0.0) rawF else {
+            val dist = (it.totalDistanceKm ?: 0.0).let { d -> if (d > 0.0) d else 1.0 }
+            val wait = it.waitTimeMinutes ?: 0.0
+            (it.baseFare + dist * it.perKmFare + wait * 2.0).coerceAtLeast(it.baseFare)
+        }
+        it.commissionAmount ?: (effFare * 0.10)
+    }
 
     Column(
         modifier = Modifier.fillMaxSize(),
@@ -1738,10 +1758,13 @@ private fun TripDetailModal(
                             Text("Rate: ₹${trip.perKmFare}/KM", fontSize = 12.sp, color = Color(0xFF38BDF8), fontWeight = FontWeight.Bold)
                         }
                         if (trip.status == "completed") {
-                            val finalF = trip.finalFare ?: 0.0
-                            val commAmt = trip.commissionAmount ?: (finalF * 0.10)
-                            val distKm = trip.totalDistanceKm ?: 0.0
+                            val distKm = (trip.totalDistanceKm ?: 0.0).let { if (it > 0.0) it else 1.0 }
                             val waitMin = trip.waitTimeMinutes ?: 0.0
+                            val rawF = trip.finalFare ?: 0.0
+                            val finalF = if (rawF > 0.0) rawF else {
+                                (trip.baseFare + distKm * trip.perKmFare + waitMin * 2.0).coerceAtLeast(trip.baseFare)
+                            }
+                            val commAmt = trip.commissionAmount ?: (finalF * 0.10)
 
                             HorizontalDivider(color = Color(0xFF334155), thickness = 0.5.dp)
                             Text(

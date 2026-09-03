@@ -28,6 +28,16 @@ class SettingsRepository(private val context: Context) {
         val KEY_TTS_SPEECH_RATE = floatPreferencesKey("tts_speech_rate")
         val KEY_TTS_PITCH = floatPreferencesKey("tts_pitch")
         val KEY_FLOATING_BUBBLE_ENABLED = booleanPreferencesKey("floating_bubble_enabled")
+
+        // Expanded Tariff Settings Keys
+        val KEY_RENTAL_BASE_HOURS = doublePreferencesKey("rental_base_hours")
+        val KEY_RENTAL_EXTRA_KM_RATE = doublePreferencesKey("rental_extra_km_rate")
+        val KEY_RENTAL_EXTRA_HOUR_RATE = doublePreferencesKey("rental_extra_hour_rate")
+        val KEY_OUTSTATION_TRIP_TYPE = stringPreferencesKey("outstation_trip_type") // "ROUNDTRIP" or "ONEWAY"
+        val KEY_OUTSTATION_DRIVER_BETA = doublePreferencesKey("outstation_driver_beta")
+        val KEY_OUTSTATION_MIN_KM = doublePreferencesKey("outstation_min_km")
+        val KEY_OUTSTATION_PER_KM = doublePreferencesKey("outstation_per_km")
+        val KEY_WAITING_FREE_MINUTES = intPreferencesKey("waiting_free_minutes")
     }
 
     val floatingBubbleEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
@@ -93,6 +103,38 @@ class SettingsRepository(private val context: Context) {
 
     val outOfCitySurchargePercent: Flow<Double> = context.dataStore.data.map { preferences ->
         preferences[KEY_OUT_OF_CITY_SURCHARGE_PERCENT] ?: 25.0
+    }
+
+    val rentalBaseHours: Flow<Double> = context.dataStore.data.map { preferences ->
+        preferences[KEY_RENTAL_BASE_HOURS] ?: 1.0
+    }
+
+    val rentalExtraKmRate: Flow<Double> = context.dataStore.data.map { preferences ->
+        preferences[KEY_RENTAL_EXTRA_KM_RATE] ?: 25.0
+    }
+
+    val rentalExtraHourRate: Flow<Double> = context.dataStore.data.map { preferences ->
+        preferences[KEY_RENTAL_EXTRA_HOUR_RATE] ?: 350.0
+    }
+
+    val outstationTripType: Flow<String> = context.dataStore.data.map { preferences ->
+        preferences[KEY_OUTSTATION_TRIP_TYPE] ?: "ROUNDTRIP"
+    }
+
+    val outstationDriverBeta: Flow<Double> = context.dataStore.data.map { preferences ->
+        preferences[KEY_OUTSTATION_DRIVER_BETA] ?: 500.0
+    }
+
+    val outstationMinKm: Flow<Double> = context.dataStore.data.map { preferences ->
+        preferences[KEY_OUTSTATION_MIN_KM] ?: 250.0
+    }
+
+    val outstationPerKmRate: Flow<Double> = context.dataStore.data.map { preferences ->
+        preferences[KEY_OUTSTATION_PER_KM] ?: 15.0
+    }
+
+    val waitingFreeMinutes: Flow<Int> = context.dataStore.data.map { preferences ->
+        preferences[KEY_WAITING_FREE_MINUTES] ?: 5
     }
 
     // Modern setter functions
@@ -189,6 +231,54 @@ class SettingsRepository(private val context: Context) {
     suspend fun updateFloatingBubbleEnabled(value: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[KEY_FLOATING_BUBBLE_ENABLED] = value
+        }
+    }
+
+    suspend fun updateRentalBaseHours(value: Double) {
+        context.dataStore.edit { preferences ->
+            preferences[KEY_RENTAL_BASE_HOURS] = value
+        }
+    }
+
+    suspend fun updateRentalExtraKmRate(value: Double) {
+        context.dataStore.edit { preferences ->
+            preferences[KEY_RENTAL_EXTRA_KM_RATE] = value
+        }
+    }
+
+    suspend fun updateRentalExtraHourRate(value: Double) {
+        context.dataStore.edit { preferences ->
+            preferences[KEY_RENTAL_EXTRA_HOUR_RATE] = value
+        }
+    }
+
+    suspend fun updateOutstationTripType(value: String) {
+        context.dataStore.edit { preferences ->
+            preferences[KEY_OUTSTATION_TRIP_TYPE] = value
+        }
+    }
+
+    suspend fun updateOutstationDriverBeta(value: Double) {
+        context.dataStore.edit { preferences ->
+            preferences[KEY_OUTSTATION_DRIVER_BETA] = value
+        }
+    }
+
+    suspend fun updateOutstationMinKm(value: Double) {
+        context.dataStore.edit { preferences ->
+            preferences[KEY_OUTSTATION_MIN_KM] = value
+        }
+    }
+
+    suspend fun updateOutstationPerKmRate(value: Double) {
+        context.dataStore.edit { preferences ->
+            preferences[KEY_OUTSTATION_PER_KM] = value
+        }
+    }
+
+    suspend fun updateWaitingFreeMinutes(value: Int) {
+        context.dataStore.edit { preferences ->
+            preferences[KEY_WAITING_FREE_MINUTES] = value
         }
     }
 }

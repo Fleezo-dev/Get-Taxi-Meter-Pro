@@ -61,6 +61,30 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val floatingBubbleEnabled: StateFlow<Boolean> = settingsRepository.floatingBubbleEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
+    val rentalBaseHours: StateFlow<Double> = settingsRepository.rentalBaseHours
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 1.0)
+
+    val rentalExtraKmRate: StateFlow<Double> = settingsRepository.rentalExtraKmRate
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 25.0)
+
+    val rentalExtraHourRate: StateFlow<Double> = settingsRepository.rentalExtraHourRate
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 350.0)
+
+    val outstationTripType: StateFlow<String> = settingsRepository.outstationTripType
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "ROUNDTRIP")
+
+    val outstationDriverBeta: StateFlow<Double> = settingsRepository.outstationDriverBeta
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 500.0)
+
+    val outstationMinKm: StateFlow<Double> = settingsRepository.outstationMinKm
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 250.0)
+
+    val outstationPerKmRate: StateFlow<Double> = settingsRepository.outstationPerKmRate
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 15.0)
+
+    val waitingFreeMinutes: StateFlow<Int> = settingsRepository.waitingFreeMinutes
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 5)
+
     fun updateBaseFare(value: Double) {
         viewModelScope.launch {
             settingsRepository.updateBaseFare(value)
@@ -156,6 +180,54 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun updateFloatingBubbleEnabled(value: Boolean) {
         viewModelScope.launch {
             settingsRepository.updateFloatingBubbleEnabled(value)
+        }
+    }
+
+    fun updateRentalBaseHours(value: Double) {
+        viewModelScope.launch {
+            settingsRepository.updateRentalBaseHours(value)
+        }
+    }
+
+    fun updateRentalExtraKmRate(value: Double) {
+        viewModelScope.launch {
+            settingsRepository.updateRentalExtraKmRate(value)
+        }
+    }
+
+    fun updateRentalExtraHourRate(value: Double) {
+        viewModelScope.launch {
+            settingsRepository.updateRentalExtraHourRate(value)
+        }
+    }
+
+    fun updateOutstationTripType(value: String) {
+        viewModelScope.launch {
+            settingsRepository.updateOutstationTripType(value)
+        }
+    }
+
+    fun updateOutstationDriverBeta(value: Double) {
+        viewModelScope.launch {
+            settingsRepository.updateOutstationDriverBeta(value)
+        }
+    }
+
+    fun updateOutstationMinKm(value: Double) {
+        viewModelScope.launch {
+            settingsRepository.updateOutstationMinKm(value)
+        }
+    }
+
+    fun updateOutstationPerKmRate(value: Double) {
+        viewModelScope.launch {
+            settingsRepository.updateOutstationPerKmRate(value)
+        }
+    }
+
+    fun updateWaitingFreeMinutes(value: Int) {
+        viewModelScope.launch {
+            settingsRepository.updateWaitingFreeMinutes(value)
         }
     }
 }

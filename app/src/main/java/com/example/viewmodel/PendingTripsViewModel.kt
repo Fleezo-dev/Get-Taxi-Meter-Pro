@@ -72,14 +72,75 @@ class PendingTripsViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
-    fun refreshDrivers() {
+    fun refreshDrivers(currentDriver: DriverProfile? = null) {
         viewModelScope.launch {
             repository.getAllDrivers()
                 .onSuccess { drivers ->
-                    _allDrivers.value = drivers
+                    val list = drivers.toMutableList()
+                    if (currentDriver != null && currentDriver.driverId.isNotBlank()) {
+                        val exists = list.any { 
+                            it.driverId == currentDriver.driverId || 
+                            (currentDriver.phoneNumber.isNotBlank() && it.driverPhone == currentDriver.phoneNumber) 
+                        }
+                        if (!exists) {
+                            list.add(
+                                0,
+                                DriverRemoteEntity(
+                                    driverId = currentDriver.driverId,
+                                    driverName = currentDriver.driverName.ifBlank { "Master Admin" },
+                                    driverPhone = currentDriver.phoneNumber.ifBlank { "9043743777" },
+                                    vehicleNumber = currentDriver.vehiclePlate.ifBlank { "TN-01-TX-1001" },
+                                    vehicleType = currentDriver.vehicleType.ifBlank { "Sedan" },
+                                    isActive = currentDriver.isActive,
+                                    status = if (currentDriver.isOnline) "AVAILABLE" else "OFFLINE"
+                                )
+                            )
+                        }
+                    }
+                    if (list.isEmpty()) {
+                        list.add(
+                            DriverRemoteEntity(
+                                driverId = "001",
+                                driverName = "Master Admin (Device)",
+                                driverPhone = "9043743777",
+                                vehicleNumber = "ADMIN-01",
+                                vehicleType = "Sedan",
+                                isActive = true,
+                                status = "AVAILABLE"
+                            )
+                        )
+                    }
+                    _allDrivers.value = list
                 }
                 .onFailure { e ->
                     Log.e("PendingTripsVM", "Failed to fetch drivers: ${e.message}")
+                    val fallback = mutableListOf<DriverRemoteEntity>()
+                    if (currentDriver != null && currentDriver.driverId.isNotBlank()) {
+                        fallback.add(
+                            DriverRemoteEntity(
+                                driverId = currentDriver.driverId,
+                                driverName = currentDriver.driverName.ifBlank { "Master Admin" },
+                                driverPhone = currentDriver.phoneNumber.ifBlank { "9043743777" },
+                                vehicleNumber = currentDriver.vehiclePlate.ifBlank { "TN-01-TX-1001" },
+                                vehicleType = currentDriver.vehicleType.ifBlank { "Sedan" },
+                                isActive = currentDriver.isActive,
+                                status = if (currentDriver.isOnline) "AVAILABLE" else "OFFLINE"
+                            )
+                        )
+                    } else {
+                        fallback.add(
+                            DriverRemoteEntity(
+                                driverId = "001",
+                                driverName = "Master Admin (Device)",
+                                driverPhone = "9043743777",
+                                vehicleNumber = "ADMIN-01",
+                                vehicleType = "Sedan",
+                                isActive = true,
+                                status = "AVAILABLE"
+                            )
+                        )
+                    }
+                    _allDrivers.value = fallback
                 }
         }
     }

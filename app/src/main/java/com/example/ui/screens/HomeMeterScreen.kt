@@ -57,6 +57,7 @@ import com.example.data.model.TripStatus
 import com.example.ui.components.AdminAuthPinModal
 import com.example.ui.components.AdminPanelModal
 import com.example.ui.components.PendingTripsBoardModal
+import com.example.ui.components.InterfaceSettingsModal
 import com.example.ui.components.SpeedometerGauge
 import com.example.ui.components.TariffSettingsModal
 import com.example.ui.components.TripMapView
@@ -118,6 +119,7 @@ fun HomeMeterScreen(
 
     var headerMenuExpanded by remember { mutableStateOf(false) }
     var showTariffSettingsModal by remember { mutableStateOf(false) }
+    var showInterfaceSettingsModal by remember { mutableStateOf(false) }
     var showVoiceTtsModal by remember { mutableStateOf(false) }
 
     var showExtraChargesModal by remember { mutableStateOf(false) }
@@ -131,6 +133,10 @@ fun HomeMeterScreen(
         val currentTime = System.currentTimeMillis()
         if (showTariffSettingsModal) {
             showTariffSettingsModal = false
+            return@BackHandler
+        }
+        if (showInterfaceSettingsModal) {
+            showInterfaceSettingsModal = false
             return@BackHandler
         }
         if (showVoiceTtsModal) {
@@ -256,25 +262,77 @@ fun HomeMeterScreen(
         )
     }
 
-    // TARIFF SETTINGS MODAL (ADJUST BASE, PER-KM, AND WAIT TIMES)
+    // TARIFF SETTINGS MODAL (4-TABS: LOCAL, HOURLY RENTAL, OUTSTATION, WAITING)
     if (showTariffSettingsModal) {
         val currentBase = settingsViewModel?.baseFare?.collectAsStateWithLifecycle()?.value ?: tripState.baseFare
         val currentKmRate = settingsViewModel?.farePerKm?.collectAsStateWithLifecycle()?.value ?: tripState.farePerKm
         val currentWaitRate = settingsViewModel?.waitFarePerMin?.collectAsStateWithLifecycle()?.value ?: tripState.waitFarePerMin
+        val currentRentalBaseHours = settingsViewModel?.rentalBaseHours?.collectAsStateWithLifecycle()?.value ?: 1.0
+        val currentRentalExtraKmRate = settingsViewModel?.rentalExtraKmRate?.collectAsStateWithLifecycle()?.value ?: 25.0
+        val currentRentalExtraHourRate = settingsViewModel?.rentalExtraHourRate?.collectAsStateWithLifecycle()?.value ?: 350.0
+        val currentOutstationTripType = settingsViewModel?.outstationTripType?.collectAsStateWithLifecycle()?.value ?: "ROUNDTRIP"
+        val currentOutstationDriverBeta = settingsViewModel?.outstationDriverBeta?.collectAsStateWithLifecycle()?.value ?: 500.0
+        val currentOutstationMinKm = settingsViewModel?.outstationMinKm?.collectAsStateWithLifecycle()?.value ?: 250.0
+        val currentOutstationPerKmRate = settingsViewModel?.outstationPerKmRate?.collectAsStateWithLifecycle()?.value ?: 15.0
+        val currentWaitingFreeMinutes = settingsViewModel?.waitingFreeMinutes?.collectAsStateWithLifecycle()?.value ?: 5
+
         TariffSettingsModal(
             currentBaseFare = currentBase,
             currentFarePerKm = currentKmRate,
             currentWaitFarePerMin = currentWaitRate,
+            currentRentalBaseHours = currentRentalBaseHours,
+            currentRentalExtraKmRate = currentRentalExtraKmRate,
+            currentRentalExtraHourRate = currentRentalExtraHourRate,
+            currentOutstationTripType = currentOutstationTripType,
+            currentOutstationDriverBeta = currentOutstationDriverBeta,
+            currentOutstationMinKm = currentOutstationMinKm,
+            currentOutstationPerKmRate = currentOutstationPerKmRate,
+            currentWaitingFreeMinutes = currentWaitingFreeMinutes,
             currency = tripState.currency,
             onDismiss = { showTariffSettingsModal = false },
             onSave = { base, perKm, wait ->
-                settingsViewModel?.updateBaseFare(base)
-                settingsViewModel?.updateFarePerKm(perKm)
-                settingsViewModel?.updateWaitFarePerMin(wait)
+                settingsViewModel?.let { vm ->
+                    vm.updateBaseFare(base)
+                    vm.updateFarePerKm(perKm)
+                    vm.updateWaitFarePerMin(wait)
+                }
                 manualBaseFareInput = base.toString()
                 manualRatePerKmInput = perKm.toString()
                 Toast.makeText(context, "Tariff updated: Base ₹$base | ₹$perKm/KM | ₹$wait/min", Toast.LENGTH_SHORT).show()
                 showTariffSettingsModal = false
+            },
+            onSaveExtended = { base, perKm, wait, rentalBaseHrs, rentalExKm, rentalExHr, outTripType, outBata, outMinKm, outPerKm, waitFree ->
+                settingsViewModel?.let { vm ->
+                    vm.updateBaseFare(base)
+                    vm.updateFarePerKm(perKm)
+                    vm.updateWaitFarePerMin(wait)
+                    vm.updateRentalBaseHours(rentalBaseHrs)
+                    vm.updateRentalExtraKmRate(rentalExKm)
+                    vm.updateRentalExtraHourRate(rentalExHr)
+                    vm.updateOutstationTripType(outTripType)
+                    vm.updateOutstationDriverBeta(outBata)
+                    vm.updateOutstationMinKm(outMinKm)
+                    vm.updateOutstationPerKmRate(outPerKm)
+                    vm.updateWaitingFreeMinutes(waitFree)
+                }
+                manualBaseFareInput = base.toString()
+                manualRatePerKmInput = perKm.toString()
+                Toast.makeText(context, "All Tariff & Package Settings saved successfully", Toast.LENGTH_SHORT).show()
+                showTariffSettingsModal = false
+            }
+        )
+    }
+
+    // INTERFACE SETTINGS MODAL (LIGHT / DARK THEME)
+    if (showInterfaceSettingsModal) {
+        val isDark = settingsViewModel?.isDarkMode?.collectAsStateWithLifecycle()?.value ?: true
+        InterfaceSettingsModal(
+            isDarkMode = isDark,
+            onDismiss = { showInterfaceSettingsModal = false },
+            onToggleDarkMode = { newDarkMode ->
+                settingsViewModel?.updateIsDarkMode(newDarkMode)
+                Toast.makeText(context, if (newDarkMode) "Dark Theme Applied" else "Light Theme Applied", Toast.LENGTH_SHORT).show()
+                showInterfaceSettingsModal = false
             }
         )
     }
@@ -551,6 +609,7 @@ fun HomeMeterScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(Color.White)
+                    .statusBarsPadding()
             ) {
                 // Top Header Row
                 Row(
@@ -590,7 +649,7 @@ fun HomeMeterScreen(
 
                     Spacer(modifier = Modifier.width(10.dp))
 
-                    // Brand Title & Driver info (Clickable 5 taps for hidden admin gesture)
+                    // Brand Title (Clickable 5 taps for hidden admin gesture)
                     Column(
                         modifier = Modifier
                             .weight(1f)
@@ -622,12 +681,6 @@ fun HomeMeterScreen(
                                 color = brandRed
                             )
                         }
-                        Text(
-                            text = "${driverProfile.vehiclePlate.ifBlank { "TN-38-BZ-4411" }} • ${driverProfile.driverName.ifBlank { "Driver" }} (${driverProfile.driverId.ifBlank { "DRV-001" }})",
-                            fontSize = 11.sp,
-                            color = Color(0xFF64748B),
-                            maxLines = 1
-                        )
                     }
 
                     // Compact Online/Offline Duty Status Toggle Switch
@@ -773,9 +826,7 @@ fun HomeMeterScreen(
                                 },
                                 onClick = {
                                     headerMenuExpanded = false
-                                    settingsViewModel?.let { vm ->
-                                        vm.updateIsDarkMode(!vm.isDarkMode.value)
-                                    }
+                                    showInterfaceSettingsModal = true
                                 },
                                 modifier = Modifier.testTag("menu_interface_settings")
                             )
