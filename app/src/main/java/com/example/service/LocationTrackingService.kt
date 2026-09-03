@@ -270,6 +270,11 @@ class LocationTrackingService : Service() {
         val action = intent?.action
         Log.d(TAG, "onStartCommand Action: $action")
 
+        if (action == null && _tripState.value.status == TripStatus.IDLE) {
+            recoverSavedTrip()
+            return START_STICKY
+        }
+
         when (action) {
             "START" -> {
                 val base = intent.getDoubleExtra("baseFare", 80.0)
@@ -480,22 +485,29 @@ class LocationTrackingService : Service() {
         serviceScope.launch {
             val record = repository.getActiveTrip()
             if (record != null) {
+                val now = System.currentTimeMillis()
+                val realElapsedSec = maxOf(record.elapsedSeconds, ((now - record.startTime) / 1000L))
+                val timeGapSec = realElapsedSec - record.elapsedSeconds
+
+                val restoredWaitingSec = if (!record.isPaused && timeGapSec > 0) {
+                    record.accumulatedWaitingSeconds + timeGapSec
+                } else {
+                    record.accumulatedWaitingSeconds
+                }
+
                 // Recover details from last snapshot
                 _tripState.value = TripState(
                     status = if (record.isPaused) TripStatus.PAUSED else TripStatus.RUNNING,
                     startTime = record.startTime,
-                    durationSeconds = record.elapsedSeconds,
-                    waitingSeconds = record.accumulatedWaitingSeconds,
+                    durationSeconds = realElapsedSec,
+                    waitingSeconds = restoredWaitingSec,
                     distanceKm = record.accumulatedDistanceKm,
                     latitude = if (record.lastLatitude != 0.0) record.lastLatitude else null,
                     longitude = if (record.lastLongitude != 0.0) record.lastLongitude else null,
-                    currentFare = 0.0 // will be calculated below
+                    currentFare = 0.0
                 )
                 
-                // Let's load preferences or default configurations
-                // Just do calculation based on our state
                 recalculateFare()
-
                 acquireWakeLock()
                 
                 if (_tripState.value.status == TripStatus.RUNNING) {
@@ -979,6 +991,30 @@ class LocationTrackingService : Service() {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error releasing WakeLock", e)
+        }
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        Log.d(TAG, "onTaskRemoved: App removed from recent tasks")
+        if (_tripState.value.status == TripStatus.RUNNING || _tripState.value.status == TripStatus.PAUSED) {
+            try {
+                val restartServiceIntent = Intent(applicationContext, LocationTrackingService::class.java).apply {
+                    action = "RECOVER"
+                }
+                val restartServicePendingIntent = PendingIntent.getService(
+                    applicationContext, 1, restartServiceIntent,
+                    PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE
+                )
+                val alarmService = applicationContext.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+                alarmService?.set(
+                    AlarmManager.ELAPSED_REALTIME,
+                    SystemClock.elapsedRealtime() + 1000,
+                    restartServicePendingIntent
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to schedule restart on task removed", e)
+            }
         }
     }
 
