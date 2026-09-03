@@ -124,7 +124,9 @@ class SupabaseTripsRepository {
     suspend fun completeTrip(
         tripId: Long,
         finalFare: Double,
-        commissionAmount: Double
+        commissionAmount: Double,
+        waitTimeMinutes: Double = 0.0,
+        totalDistanceKm: Double = 0.0
     ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             client.from(tripsTable).update(
@@ -132,6 +134,8 @@ class SupabaseTripsRepository {
                     set("status", "completed")
                     set("final_fare", finalFare)
                     set("commission_amount", commissionAmount)
+                    set("wait_time_minutes", waitTimeMinutes)
+                    set("total_distance_km", totalDistanceKm)
                 }
             ) {
                 filter {
@@ -140,12 +144,13 @@ class SupabaseTripsRepository {
             }
             Result.success(Unit)
         } catch (e: Exception) {
-            Log.w("SupabaseTripsRepo", "Full complete update failed (${e.message}), attempting partial fallback with final_fare")
+            Log.w("SupabaseTripsRepo", "Full complete update with wait time failed (${e.message}), attempting standard complete update")
             try {
                 client.from(tripsTable).update(
                     {
                         set("status", "completed")
                         set("final_fare", finalFare)
+                        set("commission_amount", commissionAmount)
                     }
                 ) {
                     filter {
@@ -158,6 +163,7 @@ class SupabaseTripsRepository {
                     client.from(tripsTable).update(
                         {
                             set("status", "completed")
+                            set("final_fare", finalFare)
                         }
                     ) {
                         filter {
@@ -166,8 +172,21 @@ class SupabaseTripsRepository {
                     }
                     Result.success(Unit)
                 } catch (e3: Exception) {
-                    Log.e("SupabaseTripsRepo", "Error completing trip $tripId: ${e3.message}", e3)
-                    Result.failure(e3)
+                    try {
+                        client.from(tripsTable).update(
+                            {
+                                set("status", "completed")
+                            }
+                        ) {
+                            filter {
+                                eq("id", tripId)
+                            }
+                        }
+                        Result.success(Unit)
+                    } catch (e4: Exception) {
+                        Log.e("SupabaseTripsRepo", "Error completing trip $tripId: ${e4.message}", e4)
+                        Result.failure(e4)
+                    }
                 }
             }
         }

@@ -33,6 +33,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -57,7 +58,10 @@ import com.example.ui.components.AdminAuthPinModal
 import com.example.ui.components.AdminPanelModal
 import com.example.ui.components.PendingTripsBoardModal
 import com.example.ui.components.SpeedometerGauge
+import com.example.ui.components.TariffSettingsModal
 import com.example.ui.components.TripMapView
+import com.example.ui.components.VoiceTtsSettingsModal
+import com.example.util.TtsManager
 import com.example.viewmodel.AppRole
 import com.example.viewmodel.DispatchViewModel
 import com.example.viewmodel.MeterViewModel
@@ -112,6 +116,10 @@ fun HomeMeterScreen(
     var settingsPinInput by remember { mutableStateOf("") }
     var isSettingsPinError by remember { mutableStateOf(false) }
 
+    var headerMenuExpanded by remember { mutableStateOf(false) }
+    var showTariffSettingsModal by remember { mutableStateOf(false) }
+    var showVoiceTtsModal by remember { mutableStateOf(false) }
+
     var showExtraChargesModal by remember { mutableStateOf(false) }
     var tollInput by remember(tripState.tollCharges) { mutableStateOf(if (tripState.tollCharges > 0) tripState.tollCharges.toInt().toString() else "") }
     var permitInput by remember(tripState.permitCharges) { mutableStateOf(if (tripState.permitCharges > 0) tripState.permitCharges.toInt().toString() else "") }
@@ -121,6 +129,14 @@ fun HomeMeterScreen(
 
     BackHandler(enabled = true) {
         val currentTime = System.currentTimeMillis()
+        if (showTariffSettingsModal) {
+            showTariffSettingsModal = false
+            return@BackHandler
+        }
+        if (showVoiceTtsModal) {
+            showVoiceTtsModal = false
+            return@BackHandler
+        }
         if (showSettingsPinModal) {
             showSettingsPinModal = false
             return@BackHandler
@@ -186,8 +202,15 @@ fun HomeMeterScreen(
     LaunchedEffect(tripState.status) {
         if (tripState.status == TripStatus.FINISHED && activeClaimedTrip != null) {
             val finalFareToSave = if (tripState.currentFare > 0.0) tripState.currentFare else tripState.baseFare
+            val waitMins = tripState.waitingSeconds / 60.0
+            val totalDist = tripState.distanceKm
             activeClaimedTrip?.id?.let { tripId ->
-                pendingTripsViewModel.completeClaimedTrip(tripId, finalFareToSave)
+                pendingTripsViewModel.completeClaimedTrip(
+                    tripId = tripId,
+                    finalFare = finalFareToSave,
+                    waitTimeMinutes = waitMins,
+                    totalDistanceKm = totalDist
+                )
             }
             activeClaimedTrip = null
         }
@@ -229,6 +252,45 @@ fun HomeMeterScreen(
                 activeClaimedTrip = trip
                 manualBaseFareInput = trip.baseFare.toString()
                 manualRatePerKmInput = trip.perKmFare.toString()
+            }
+        )
+    }
+
+    // TARIFF SETTINGS MODAL (ADJUST BASE, PER-KM, AND WAIT TIMES)
+    if (showTariffSettingsModal) {
+        val currentBase = settingsViewModel?.baseFare?.collectAsStateWithLifecycle()?.value ?: tripState.baseFare
+        val currentKmRate = settingsViewModel?.farePerKm?.collectAsStateWithLifecycle()?.value ?: tripState.farePerKm
+        val currentWaitRate = settingsViewModel?.waitFarePerMin?.collectAsStateWithLifecycle()?.value ?: tripState.waitFarePerMin
+        TariffSettingsModal(
+            currentBaseFare = currentBase,
+            currentFarePerKm = currentKmRate,
+            currentWaitFarePerMin = currentWaitRate,
+            currency = tripState.currency,
+            onDismiss = { showTariffSettingsModal = false },
+            onSave = { base, perKm, wait ->
+                settingsViewModel?.updateBaseFare(base)
+                settingsViewModel?.updateFarePerKm(perKm)
+                settingsViewModel?.updateWaitFarePerMin(wait)
+                manualBaseFareInput = base.toString()
+                manualRatePerKmInput = perKm.toString()
+                Toast.makeText(context, "Tariff updated: Base ₹$base | ₹$perKm/KM | ₹$wait/min", Toast.LENGTH_SHORT).show()
+                showTariffSettingsModal = false
+            }
+        )
+    }
+
+    // VOICE TTS SETTINGS MODAL (SELECT FROM 4 VOICES: 2 MALE, 2 FEMALE)
+    if (showVoiceTtsModal) {
+        val currentVoiceProfile = settingsViewModel?.ttsVoiceProfile?.collectAsStateWithLifecycle()?.value ?: "FEMALE_1"
+        VoiceTtsSettingsModal(
+            currentProfileId = currentVoiceProfile,
+            onDismiss = { showVoiceTtsModal = false },
+            onSelectProfile = { profileId, pitch, speechRate ->
+                settingsViewModel?.updateTtsVoiceProfile(profileId)
+                settingsViewModel?.updateTtsPitch(pitch)
+                settingsViewModel?.updateTtsSpeechRate(speechRate)
+                Toast.makeText(context, "Voice updated to $profileId", Toast.LENGTH_SHORT).show()
+                showVoiceTtsModal = false
             }
         )
     }
@@ -497,7 +559,7 @@ fun HomeMeterScreen(
                         .padding(horizontal = 16.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Red circle icon with white taxi image
+                    // Red circle icon with white taxi image (Hidden 5-tap gesture on brand icon)
                     Box(
                         modifier = Modifier
                             .size(42.dp)
@@ -526,250 +588,218 @@ fun HomeMeterScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
 
-                    Column(modifier = Modifier.weight(1f)) {
+                    // Brand Title & Driver info (Clickable 5 taps for hidden admin gesture)
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable {
+                                val now = System.currentTimeMillis()
+                                if (now - lastBrandTapTime > 2000L) {
+                                    brandTapCount = 1
+                                } else {
+                                    brandTapCount++
+                                }
+                                lastBrandTapTime = now
+                                if (brandTapCount >= 5) {
+                                    brandTapCount = 0
+                                    showAdminAuthModal = true
+                                }
+                            }
+                    ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "Taxi Meter Pro ",
+                                text = "Taxi Meter ",
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 17.sp,
+                                fontSize = 16.sp,
                                 color = Color(0xFF0F172A)
                             )
                             Text(
                                 text = "By Get Taxi",
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 17.sp,
+                                fontSize = 16.sp,
                                 color = brandRed
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Surface(
-                                color = Color.Transparent,
-                                shape = RoundedCornerShape(6.dp),
-                                border = BorderStroke(1.dp, Color(0xFF94A3B8))
-                            ) {
-                                Text(
-                                    text = "PRO",
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF64748B),
-                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                )
-                            }
                         }
                         Text(
-                            text = "${driverProfile.vehiclePlate} • ${driverProfile.driverName} (${driverProfile.driverId})",
+                            text = "${driverProfile.vehiclePlate.ifBlank { "TN-38-BZ-4411" }} • ${driverProfile.driverName.ifBlank { "Driver" }} (${driverProfile.driverId.ifBlank { "DRV-001" }})",
                             fontSize = 11.sp,
-                            color = Color(0xFF64748B)
+                            color = Color(0xFF64748B),
+                            maxLines = 1
                         )
                     }
-                }
 
-                // Top Navigation Pills Row 1
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Meter (Selected)
+                    // Compact Online/Offline Duty Status Toggle Switch
                     Surface(
-                        color = brandRed,
+                        color = if (driverProfile.isOnline) Color(0xFFDCFCE7) else Color(0xFFFEE2E2),
                         shape = RoundedCornerShape(20.dp),
-                        modifier = Modifier.testTag("nav_meter_button")
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.DirectionsCar, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
-                            Spacer(modifier = Modifier.width(5.dp))
-                            Text("Meter", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                        }
-                    }
-
-                    // History (8)
-                    Surface(
-                        color = Color.White,
-                        shape = RoundedCornerShape(20.dp),
-                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        border = BorderStroke(1.dp, if (driverProfile.isOnline) Color(0xFF86EFAC) else Color(0xFFFECACA)),
                         modifier = Modifier
-                            .clickable { onNavigateToReceipt(allTrips.firstOrNull()?.id ?: 0) }
-                            .testTag("nav_history_button")
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.History, contentDescription = null, tint = Color(0xFF64748B), modifier = Modifier.size(15.dp))
-                            Spacer(modifier = Modifier.width(5.dp))
-                            Text("History (${allTrips.size})", color = Color(0xFF475569), fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-                        }
-                    }
-
-                    // Earnings
-                    Surface(
-                        color = Color.White,
-                        shape = RoundedCornerShape(20.dp),
-                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                        modifier = Modifier
-                            .clickable { onNavigateToProfile() }
-                            .testTag("nav_earnings_button")
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.TrendingUp, contentDescription = null, tint = Color(0xFF64748B), modifier = Modifier.size(15.dp))
-                            Spacer(modifier = Modifier.width(5.dp))
-                            Text("Earnings", color = Color(0xFF475569), fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.weight(1f))
-
-                    // Sun Icon Button (Toggle Dark/Light Mode)
-                    Surface(
-                        color = Color.White,
-                        shape = CircleShape,
-                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                        modifier = Modifier
-                            .size(34.dp)
+                            .padding(end = 4.dp)
                             .clickable {
-                                settingsViewModel?.let { vm ->
-                                    vm.updateIsDarkMode(!vm.isDarkMode.value)
-                                }
+                                val newOnline = !driverProfile.isOnline
+                                dispatchViewModel.updateDriverProfile(
+                                    driverProfile.copy(
+                                        isOnline = newOnline,
+                                        status = if (newOnline) "AVAILABLE" else "OFFLINE"
+                                    )
+                                )
                             }
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.WbSunny, contentDescription = "Toggle Light/Dark", tint = Color(0xFFD97706), modifier = Modifier.size(16.dp))
-                        }
-                    }
-
-                    // Speaker Icon Button (Audio Announcements)
-                    Surface(
-                        color = Color.White,
-                        shape = CircleShape,
-                        border = BorderStroke(1.dp, Color(0xFFFEE2E2)),
-                        modifier = Modifier
-                            .size(34.dp)
-                            .clickable {
-                                Toast.makeText(context, "Voice announcements active", Toast.LENGTH_SHORT).show()
-                            }
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.VolumeUp, contentDescription = "Voice Audio", tint = brandRed, modifier = Modifier.size(16.dp))
-                        }
-                    }
-                }
-
-                // Top Navigation Pills Row 2
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Remote Trip
-                    Surface(
-                        color = Color(0xFFFEE2E2),
-                        shape = RoundedCornerShape(20.dp),
-                        modifier = Modifier.clickable { showPendingTripsModal = true }
+                            .testTag("compact_duty_status_toggle")
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                            modifier = Modifier.padding(start = 8.dp, end = 2.dp, top = 2.dp, bottom = 2.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.CellTower, contentDescription = null, tint = brandRed, modifier = Modifier.size(13.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(7.dp)
+                                    .clip(CircleShape)
+                                    .background(if (driverProfile.isOnline) Color(0xFF16A34A) else Color(0xFFDC2626))
+                            )
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Remote Trip", color = brandRed, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                            Text(
+                                text = if (driverProfile.isOnline) "ONLINE" else "OFFLINE",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Black,
+                                color = if (driverProfile.isOnline) Color(0xFF15803D) else Color(0xFFB91C1C)
+                            )
+                            Switch(
+                                checked = driverProfile.isOnline,
+                                onCheckedChange = { isOnline ->
+                                    dispatchViewModel.updateDriverProfile(
+                                        driverProfile.copy(
+                                            isOnline = isOnline,
+                                            status = if (isOnline) "AVAILABLE" else "OFFLINE"
+                                        )
+                                    )
+                                },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = Color.White,
+                                    checkedTrackColor = Color(0xFF16A34A),
+                                    uncheckedThumbColor = Color.White,
+                                    uncheckedTrackColor = Color(0xFFDC2626)
+                                ),
+                                modifier = Modifier
+                                    .scale(0.65f)
+                                    .testTag("header_duty_switch")
+                            )
                         }
                     }
 
-                    // QR Code
-                    Surface(
-                        color = Color(0xFFFEF3C7),
-                        shape = RoundedCornerShape(20.dp),
-                        modifier = Modifier.clickable { onNavigateToProfile() }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                    // Hamburger Menu (≡)
+                    Box {
+                        IconButton(
+                            onClick = { headerMenuExpanded = true },
+                            modifier = Modifier
+                                .size(38.dp)
+                                .testTag("header_hamburger_menu_button")
                         ) {
-                            Icon(Icons.Default.QrCodeScanner, contentDescription = null, tint = Color(0xFFD97706), modifier = Modifier.size(13.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("QR Code", color = Color(0xFFD97706), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                            Icon(
+                                imageVector = Icons.Default.Menu,
+                                contentDescription = "Main Menu",
+                                tint = Color(0xFF0F172A),
+                                modifier = Modifier.size(26.dp)
+                            )
                         }
-                    }
 
-                    // DRV-001
-                    Surface(
-                        color = Color.White,
-                        shape = RoundedCornerShape(20.dp),
-                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                        modifier = Modifier.clickable { onNavigateToProfile() }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                        DropdownMenu(
+                            expanded = headerMenuExpanded,
+                            onDismissRequest = { headerMenuExpanded = false },
+                            modifier = Modifier
+                                .background(Color.White)
+                                .width(220.dp)
                         ) {
-                            Icon(Icons.Default.Person, contentDescription = null, tint = brandRed, modifier = Modifier.size(13.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(driverProfile.driverId, color = Color(0xFF1E293B), fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                        }
-                    }
+                            // 1. Admin Login (triggering PIN pad: 1005 Master / 1404 Regular)
+                            DropdownMenuItem(
+                                text = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Lock, contentDescription = null, tint = brandRed, modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Column {
+                                            Text("Admin Login", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A), fontSize = 13.sp)
+                                            Text("PIN: 1005 / 1404", fontSize = 10.sp, color = Color(0xFF64748B))
+                                        }
+                                    }
+                                },
+                                onClick = {
+                                    headerMenuExpanded = false
+                                    showAdminAuthModal = true
+                                },
+                                modifier = Modifier.testTag("menu_admin_login")
+                            )
 
-                    // Device ID
-                    Surface(
-                        color = Color.White,
-                        shape = RoundedCornerShape(20.dp),
-                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                        modifier = Modifier.clickable {
-                            Toast.makeText(context, "Device ID Active: BASH-${Build.MODEL}", Toast.LENGTH_SHORT).show()
-                        }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.VpnKey, contentDescription = null, tint = Color(0xFFD97706), modifier = Modifier.size(13.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Device ID", color = Color(0xFF1E293B), fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                        }
-                    }
+                            HorizontalDivider(color = Color(0xFFF1F5F9))
 
-                    // Tariff
-                    Surface(
-                        color = Color.White,
-                        shape = RoundedCornerShape(20.dp),
-                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                        modifier = Modifier.clickable { showSettingsPinModal = true }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.Settings, contentDescription = null, tint = brandRed, modifier = Modifier.size(13.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Tariff", color = Color(0xFF1E293B), fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                        }
-                    }
+                            // 2. Tariff Settings (to adjust base, per-km, and wait times)
+                            DropdownMenuItem(
+                                text = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Settings, contentDescription = null, tint = Color(0xFF2563EB), modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Column {
+                                            Text("Tariff Settings", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A), fontSize = 13.sp)
+                                            Text("Base, Per-KM & Wait rates", fontSize = 10.sp, color = Color(0xFF64748B))
+                                        }
+                                    }
+                                },
+                                onClick = {
+                                    headerMenuExpanded = false
+                                    showTariffSettingsModal = true
+                                },
+                                modifier = Modifier.testTag("menu_tariff_settings")
+                            )
 
-                    // Admin
-                    Surface(
-                        color = Color(0xFFFEE2E2),
-                        shape = RoundedCornerShape(20.dp),
-                        modifier = Modifier.clickable { showAdminAuthModal = true }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.Lock, contentDescription = null, tint = brandRed, modifier = Modifier.size(13.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Admin", color = brandRed, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                            HorizontalDivider(color = Color(0xFFF1F5F9))
+
+                            // 3. Interface Settings (toggle between Dark background and Light/White background)
+                            val isDark = settingsViewModel?.isDarkMode?.collectAsStateWithLifecycle()?.value ?: false
+                            DropdownMenuItem(
+                                text = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            if (isDark) Icons.Default.LightMode else Icons.Default.DarkMode,
+                                            contentDescription = null,
+                                            tint = Color(0xFFD97706),
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Column {
+                                            Text("Interface Settings", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A), fontSize = 13.sp)
+                                            Text(if (isDark) "Switch to Light Theme" else "Switch to Dark Theme", fontSize = 10.sp, color = Color(0xFF64748B))
+                                        }
+                                    }
+                                },
+                                onClick = {
+                                    headerMenuExpanded = false
+                                    settingsViewModel?.let { vm ->
+                                        vm.updateIsDarkMode(!vm.isDarkMode.value)
+                                    }
+                                },
+                                modifier = Modifier.testTag("menu_interface_settings")
+                            )
+
+                            HorizontalDivider(color = Color(0xFFF1F5F9))
+
+                            // 4. Voice TTS Settings (select from 4 voices: 2 Male, 2 Female for announcements)
+                            DropdownMenuItem(
+                                text = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.RecordVoiceOver, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Column {
+                                            Text("Voice TTS Settings", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A), fontSize = 13.sp)
+                                            Text("4 Voices (2 Male, 2 Female)", fontSize = 10.sp, color = Color(0xFF64748B))
+                                        }
+                                    }
+                                },
+                                onClick = {
+                                    headerMenuExpanded = false
+                                    showVoiceTtsModal = true
+                                },
+                                modifier = Modifier.testTag("menu_voice_tts_settings")
+                            )
                         }
                     }
                 }
@@ -1033,263 +1063,174 @@ fun HomeMeterScreen(
                 }
             }
 
-            // DUTY STATUS TOGGLE CARD
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = if (driverProfile.isOnline) Color(0xFFE8F5E9) else Color(0xFFFFEBEE)
-                ),
-                shape = RoundedCornerShape(18.dp),
-                border = BorderStroke(1.5.dp, if (driverProfile.isOnline) Color(0xFFA5D6A7) else Color(0xFFFFCDD2)),
-                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 12.dp)
-            ) {
-                Row(
+            // PENDING TRIPS DISPATCH BOARD / CLAIMED TRIP ACTIVE CARD (SUPABASE CLOUD)
+            // Hidden once the ride starts to conserve screen real estate
+            val isRideActive = tripState.status == TripStatus.RUNNING || tripState.status == TripStatus.PAUSED
+            if (!isRideActive) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    shape = RoundedCornerShape(20.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+                    border = BorderStroke(1.dp, if (activeClaimedTrip != null) Color(0xFF10B981) else brandRed.copy(alpha = 0.4f)),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(vertical = 6.dp)
+                        .testTag("pending_trips_dispatch_card")
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(38.dp)
-                                .clip(CircleShape)
-                                .background(if (driverProfile.isOnline) Color(0xFF2E7D32) else Color(0xFFD32F2F)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = if (driverProfile.isOnline) Icons.Default.CheckCircle else Icons.Default.PowerSettingsNew,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                text = "DUTY STATUS",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Black,
-                                letterSpacing = 1.sp,
-                                color = if (driverProfile.isOnline) Color(0xFF1B5E20) else Color(0xFFB71C1C)
-                            )
-                            Text(
-                                text = if (driverProfile.isOnline) "ONLINE / Available for Trips" else "OFFLINE / Off Duty",
-                                fontSize = 12.sp,
-                                color = if (driverProfile.isOnline) Color(0xFF2E7D32) else Color(0xFFC62828),
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-
-                    Switch(
-                        checked = driverProfile.isOnline,
-                        onCheckedChange = { isOnline ->
-                            dispatchViewModel.updateDriverProfile(
-                                driverProfile.copy(
-                                    isOnline = isOnline,
-                                    status = if (isOnline) "AVAILABLE" else "OFFLINE"
-                                )
-                            )
-                        },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color.White,
-                            checkedTrackColor = Color(0xFF2E7D32),
-                            checkedBorderColor = Color(0xFF1B5E20),
-                            checkedIconColor = Color(0xFF2E7D32),
-                            uncheckedThumbColor = Color.White,
-                            uncheckedTrackColor = Color(0xFFD32F2F),
-                            uncheckedBorderColor = Color(0xFFB71C1C),
-                            uncheckedIconColor = Color(0xFFD32F2F)
-                        ),
-                        thumbContent = {
-                            if (driverProfile.isOnline) {
-                                Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(SwitchDefaults.IconSize),
-                                    tint = Color(0xFF2E7D32)
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(SwitchDefaults.IconSize),
-                                    tint = Color(0xFFD32F2F)
-                                )
-                            }
-                        }
-                    )
-                }
-            }
-
-            // PENDING TRIPS DISPATCH BOARD CARD (SUPABASE CLOUD)
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(20.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
-                border = BorderStroke(1.dp, if (activeClaimedTrip != null) Color(0xFF10B981) else brandRed.copy(alpha = 0.4f)),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 6.dp)
-                    .testTag("pending_trips_dispatch_card")
-            ) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(if (activeClaimedTrip != null) Color(0xFF10B981).copy(alpha = 0.2f) else brandRed.copy(alpha = 0.15f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = if (activeClaimedTrip != null) Icons.Default.CheckCircle else Icons.Default.CloudDownload,
-                                    contentDescription = null,
-                                    tint = if (activeClaimedTrip != null) Color(0xFF10B981) else brandRed,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                            Column {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = if (activeClaimedTrip != null) "CLAIMED TRIP ACTIVE" else "PENDING DISPATCH TRIPS",
-                                        fontWeight = FontWeight.Black,
-                                        fontSize = 12.sp,
-                                        letterSpacing = 0.5.sp,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    if (activeClaimedTrip == null && pendingTripsList.isNotEmpty()) {
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Surface(
-                                            color = brandRed,
-                                            shape = CircleShape
-                                        ) {
-                                            Text(
-                                                text = "${pendingTripsList.size}",
-                                                color = Color.White,
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Black,
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                                Text(
-                                    text = if (activeClaimedTrip != null) "Custom base & km rates loaded into meter" else if (pendingTripsList.isNotEmpty()) "${pendingTripsList.size} trip(s) available to claim" else "Bash Cloud Live • No pending trips",
-                                    fontSize = 11.sp,
-                                    color = if (activeClaimedTrip != null) Color(0xFF10B981) else Color.Gray,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                        }
-
-                        Button(
-                            onClick = { showPendingTripsModal = true },
-                            colors = ButtonDefaults.buttonColors(containerColor = brandRed),
-                            shape = RoundedCornerShape(12.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                            modifier = Modifier.testTag("open_pending_trips_button")
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = if (pendingTripsList.isNotEmpty()) "VIEW (${pendingTripsList.size})" else "VIEW BOARD",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = Color.White
-                                )
-                            }
-                        }
-                    }
-
-                    if (activeClaimedTrip != null) {
-                        val trip = activeClaimedTrip!!
-                        Surface(
-                            color = Color(0xFF10B981).copy(alpha = 0.1f),
-                            shape = RoundedCornerShape(12.dp),
-                            border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.3f)),
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             Row(
-                                modifier = Modifier.padding(10.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.weight(1f)
                             ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "Customer: ${trip.customerPhone} ${trip.customerName?.let { "($it)" } ?: ""}",
-                                        fontWeight = FontWeight.Black,
-                                        fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    if (!trip.pickupLocation.isNullOrBlank() || !trip.dropLocation.isNullOrBlank()) {
-                                        Text(
-                                            text = "${trip.pickupLocation ?: "Pickup"} ➔ ${trip.dropLocation ?: "Drop"}",
-                                            fontSize = 11.sp,
-                                            color = Color.Gray
-                                        )
-                                    }
-                                    Text(
-                                        text = "Tariff Loaded: Base ₹${trip.baseFare} | Rate ₹${trip.perKmFare}/KM",
-                                        fontWeight = FontWeight.Black,
-                                        fontSize = 11.sp,
-                                        color = brandRed
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(if (activeClaimedTrip != null) Color(0xFF10B981).copy(alpha = 0.2f) else brandRed.copy(alpha = 0.15f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = if (activeClaimedTrip != null) Icons.Default.CheckCircle else Icons.Default.CloudDownload,
+                                        contentDescription = null,
+                                        tint = if (activeClaimedTrip != null) Color(0xFF10B981) else brandRed,
+                                        modifier = Modifier.size(20.dp)
                                     )
                                 }
-
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Button(
-                                        onClick = {
-                                            try {
-                                                val cleanNum = trip.customerPhone.trim().replace(" ", "")
-                                                val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$cleanNum")).apply {
-                                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                                }
-                                                context.startActivity(dialIntent)
-                                            } catch (e: Exception) {
-                                                Toast.makeText(context, "Cannot open dialer: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+                                Column {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = if (activeClaimedTrip != null) "CLAIMED TRIP ACTIVE" else "PENDING DISPATCH TRIPS",
+                                            fontWeight = FontWeight.Black,
+                                            fontSize = 12.sp,
+                                            letterSpacing = 0.5.sp,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        if (activeClaimedTrip == null && pendingTripsList.isNotEmpty()) {
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Surface(
+                                                color = brandRed,
+                                                shape = CircleShape
+                                            ) {
+                                                Text(
+                                                    text = "${pendingTripsList.size}",
+                                                    color = Color.White,
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Black,
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                )
                                             }
-                                        },
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
-                                        shape = RoundedCornerShape(8.dp),
-                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                                        modifier = Modifier.testTag("call_claimed_customer_button")
-                                    ) {
-                                        Icon(Icons.Default.Phone, contentDescription = "Call", tint = Color.White, modifier = Modifier.size(14.dp))
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text("CALL", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                        }
+                                    }
+                                    Text(
+                                        text = if (activeClaimedTrip != null) "Custom base & km rates loaded into meter" else if (pendingTripsList.isNotEmpty()) "${pendingTripsList.size} trip(s) available to claim" else "Bash Cloud Live • No pending trips",
+                                        fontSize = 11.sp,
+                                        color = if (activeClaimedTrip != null) Color(0xFF10B981) else Color.Gray,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
+
+                            Button(
+                                onClick = { showPendingTripsModal = true },
+                                colors = ButtonDefaults.buttonColors(containerColor = brandRed),
+                                shape = RoundedCornerShape(12.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                modifier = Modifier.testTag("open_pending_trips_button")
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = if (pendingTripsList.isNotEmpty()) "VIEW (${pendingTripsList.size})" else "VIEW BOARD",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = Color.White
+                                    )
+                                }
+                            }
+                        }
+
+                        if (activeClaimedTrip != null) {
+                            val trip = activeClaimedTrip!!
+                            Surface(
+                                color = Color(0xFF10B981).copy(alpha = 0.1f),
+                                shape = RoundedCornerShape(12.dp),
+                                border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.3f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Customer: ${trip.customerPhone} ${trip.customerName?.let { "($it)" } ?: ""}",
+                                            fontWeight = FontWeight.Black,
+                                            fontSize = 12.sp,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        if (!trip.pickupLocation.isNullOrBlank() || !trip.dropLocation.isNullOrBlank()) {
+                                            Text(
+                                                text = "${trip.pickupLocation ?: "Pickup"} ➔ ${trip.dropLocation ?: "Drop"}",
+                                                fontSize = 11.sp,
+                                                color = Color.Gray
+                                            )
+                                        }
+                                        Text(
+                                            text = "Tariff Loaded: Base ₹${trip.baseFare} | Rate ₹${trip.perKmFare}/KM",
+                                            fontWeight = FontWeight.Black,
+                                            fontSize = 11.sp,
+                                            color = brandRed
+                                        )
                                     }
 
-                                    Surface(
-                                        color = Color(0xFF10B981).copy(alpha = 0.2f),
-                                        shape = RoundedCornerShape(8.dp),
-                                        border = BorderStroke(1.dp, Color(0xFF10B981))
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
-                                        Row(
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                            verticalAlignment = Alignment.CenterVertically
+                                        Button(
+                                            onClick = {
+                                                try {
+                                                    val cleanNum = trip.customerPhone.trim().replace(" ", "")
+                                                    val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$cleanNum")).apply {
+                                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                                    }
+                                                    context.startActivity(dialIntent)
+                                                } catch (e: Exception) {
+                                                    Toast.makeText(context, "Cannot open dialer: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+                                                }
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+                                            shape = RoundedCornerShape(8.dp),
+                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                            modifier = Modifier.testTag("call_claimed_customer_button")
                                         ) {
-                                            Icon(Icons.Default.Lock, contentDescription = "Locked Active Trip", tint = Color(0xFF10B981), modifier = Modifier.size(12.dp))
+                                            Icon(Icons.Default.Phone, contentDescription = "Call", tint = Color.White, modifier = Modifier.size(14.dp))
                                             Spacer(modifier = Modifier.width(4.dp))
-                                            Text("LOCKED", color = Color(0xFF10B981), fontWeight = FontWeight.Black, fontSize = 10.sp)
+                                            Text("CALL", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                        }
+
+                                        Surface(
+                                            color = Color(0xFF10B981).copy(alpha = 0.2f),
+                                            shape = RoundedCornerShape(8.dp),
+                                            border = BorderStroke(1.dp, Color(0xFF10B981))
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Icon(Icons.Default.Lock, contentDescription = "Locked Active Trip", tint = Color(0xFF10B981), modifier = Modifier.size(12.dp))
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text("LOCKED", color = Color(0xFF10B981), fontWeight = FontWeight.Black, fontSize = 10.sp)
+                                            }
                                         }
                                     }
                                 }
@@ -1477,7 +1418,7 @@ fun HomeMeterScreen(
                                 shape = CircleShape,
                                 modifier = Modifier
                                     .size(36.dp)
-                                    .clickable { showSettingsPinModal = true }
+                                    .clickable { showTariffSettingsModal = true }
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Icon(Icons.Default.Tune, contentDescription = "Custom Tariff", tint = brandRed, modifier = Modifier.size(18.dp))
@@ -1585,125 +1526,168 @@ fun HomeMeterScreen(
                         }
                     }
 
-                    // 2x2 GRID STATISTICS CARDS
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 14.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        // Card 1: SPEED
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
-                            shape = RoundedCornerShape(20.dp),
-                            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                            modifier = Modifier.weight(1f)
+                    // PRE-RIDE LOCK: Speedometer and distance trackers remain completely hidden until ride starts
+                    if (isRideActive) {
+                        // 2x2 GRID STATISTICS CARDS (ACTIVE TRIP)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 14.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Column(modifier = Modifier.padding(14.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Speed, contentDescription = null, tint = brandRed, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("SPEED", color = Color(0xFF64748B), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                            // Card 1: SPEED
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                shape = RoundedCornerShape(20.dp),
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Speed, contentDescription = null, tint = brandRed, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("SPEED", color = Color(0xFF64748B), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                    }
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Row(verticalAlignment = Alignment.Bottom) {
+                                        Text(
+                                            text = String.format(Locale.US, "%.1f", tripState.speedKmH),
+                                            color = Color(0xFF0F172A),
+                                            fontSize = 22.sp,
+                                            fontWeight = FontWeight.Black
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("KM/h", color = Color(0xFF64748B), fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 2.dp))
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text("GPS Active", color = Color(0xFF94A3B8), fontSize = 10.sp)
                                 }
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Row(verticalAlignment = Alignment.Bottom) {
+                            }
+
+                            // Card 2: DIST
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                shape = RoundedCornerShape(20.dp),
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Navigation, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("DIST", color = Color(0xFF64748B), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                    }
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Row(verticalAlignment = Alignment.Bottom) {
+                                        Text(
+                                            text = String.format(Locale.US, "%.2f", tripState.distanceKm),
+                                            color = Color(0xFF0F172A),
+                                            fontSize = 22.sp,
+                                            fontWeight = FontWeight.Black
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("KM", color = Color(0xFF10B981), fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 2.dp))
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text("Calibrated", color = Color(0xFF94A3B8), fontSize = 10.sp)
+                                }
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 10.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            // Card 3: TIME
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                shape = RoundedCornerShape(20.dp),
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Schedule, contentDescription = null, tint = Color(0xFF64748B), modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("TIME", color = Color(0xFF64748B), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                    }
+                                    Spacer(modifier = Modifier.height(6.dp))
                                     Text(
-                                        text = String.format(Locale.US, "%.1f", tripState.speedKmH),
+                                        text = formatDuration(tripState.durationSeconds).substring(3),
                                         color = Color(0xFF0F172A),
                                         fontSize = 22.sp,
                                         fontWeight = FontWeight.Black
                                     )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("KM/h", color = Color(0xFF64748B), fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 2.dp))
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text("Duration", color = Color(0xFF94A3B8), fontSize = 10.sp)
                                 }
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text("Max 0.0", color = Color(0xFF94A3B8), fontSize = 10.sp)
                             }
-                        }
 
-                        // Card 2: DIST
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
-                            shape = RoundedCornerShape(20.dp),
-                            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Column(modifier = Modifier.padding(14.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Navigation, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("DIST", color = Color(0xFF64748B), fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                                }
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Row(verticalAlignment = Alignment.Bottom) {
+                            // Card 4: WAIT
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                shape = RoundedCornerShape(20.dp),
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Sensors, contentDescription = null, tint = brandRed, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("WAIT", color = Color(0xFF64748B), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                    }
+                                    Spacer(modifier = Modifier.height(6.dp))
                                     Text(
-                                        text = String.format(Locale.US, "%.2f", tripState.distanceKm),
-                                        color = Color(0xFF0F172A),
+                                        text = formatDuration(tripState.waitingSeconds).substring(3),
+                                        color = brandRed,
                                         fontSize = 22.sp,
                                         fontWeight = FontWeight.Black
                                     )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("KM", color = Color(0xFF10B981), fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 2.dp))
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text("Stationary", color = Color(0xFF94A3B8), fontSize = 10.sp)
                                 }
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text("GPS Live", color = Color(0xFF94A3B8), fontSize = 10.sp)
                             }
                         }
-                    }
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 10.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        // Card 3: TIME
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
-                            shape = RoundedCornerShape(20.dp),
+                    } else {
+                        // PRE-RIDE LOCK: Inactive speedometer and trackers until "Start the Ride" is pressed
+                        Surface(
+                            color = Color(0xFFF8FAFC),
+                            shape = RoundedCornerShape(16.dp),
                             border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 14.dp)
+                                .testTag("pre_ride_locked_panel")
                         ) {
-                            Column(modifier = Modifier.padding(14.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Schedule, contentDescription = null, tint = Color(0xFF64748B), modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("TIME", color = Color(0xFF64748B), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFFE2E8F0)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.Lock, contentDescription = "Locked", tint = Color(0xFF64748B), modifier = Modifier.size(18.dp))
                                 }
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = formatDuration(tripState.durationSeconds).substring(3),
-                                    color = Color(0xFF0F172A),
-                                    fontSize = 22.sp,
-                                    fontWeight = FontWeight.Black
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text("Duration", color = Color(0xFF94A3B8), fontSize = 10.sp)
-                            }
-                        }
-
-                        // Card 4: WAIT
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
-                            shape = RoundedCornerShape(20.dp),
-                            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Column(modifier = Modifier.padding(14.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Sensors, contentDescription = null, tint = brandRed, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("WAIT", color = Color(0xFF64748B), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                Column {
+                                    Text(
+                                        text = "PRE-RIDE LOCK ACTIVE",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp,
+                                        color = Color(0xFF1E293B)
+                                    )
+                                    Text(
+                                        text = "Speedometer & distance tracking will unlock upon starting trip",
+                                        fontSize = 11.sp,
+                                        color = Color(0xFF64748B)
+                                    )
                                 }
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = formatDuration(tripState.waitingSeconds).substring(3),
-                                    color = brandRed,
-                                    fontSize = 22.sp,
-                                    fontWeight = FontWeight.Black
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text("Stationary", color = Color(0xFF94A3B8), fontSize = 10.sp)
                             }
                         }
                     }

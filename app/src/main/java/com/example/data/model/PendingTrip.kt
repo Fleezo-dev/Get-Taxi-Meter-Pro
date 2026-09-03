@@ -33,6 +33,10 @@ data class PendingTrip(
     val finalFare: Double? = 0.0,
     @SerialName("commission_amount")
     val commissionAmount: Double? = 0.0,
+    @SerialName("wait_time_minutes")
+    val waitTimeMinutes: Double? = 0.0,
+    @SerialName("total_distance_km")
+    val totalDistanceKm: Double? = 0.0,
     @SerialName("created_at")
     val createdAt: String? = null
 )

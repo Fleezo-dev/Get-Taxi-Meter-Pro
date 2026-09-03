@@ -42,6 +42,7 @@ class LocationTrackingService : Service() {
     private var timerJob: Job? = null
 
     companion object {
+        const val ACTION_RECOVER = "RECOVER"
         private const val TAG = "TaxiMeterService"
         private const val NOTIFICATION_ID = 9911
         private const val CHANNEL_ID = "taxi_meter_channel"
@@ -359,6 +360,34 @@ class LocationTrackingService : Service() {
         return START_STICKY
     }
 
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        saveSnapshotToDatabase()
+        val state = _tripState.value
+        if (state.status == TripStatus.RUNNING || state.status == TripStatus.PAUSED) {
+            // Task-Kill Resiliency: Keep background foreground service alive and schedule recovery alarm
+            try {
+                val restartServiceIntent = Intent(applicationContext, LocationTrackingService::class.java).apply {
+                    action = ACTION_RECOVER
+                }
+                val restartPendingIntent = PendingIntent.getService(
+                    applicationContext,
+                    101,
+                    restartServiceIntent,
+                    PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE
+                )
+                val alarmManager = getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+                alarmManager?.set(
+                    AlarmManager.ELAPSED_REALTIME,
+                    SystemClock.elapsedRealtime() + 1000,
+                    restartPendingIntent
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Task-kill resiliency restart registration failed", e)
+            }
+        }
+    }
+
     private fun announceVoice(message: String) {
         if (_tripState.value.status != TripStatus.IDLE) {
             TtsManager.getInstance(this).speak(message)
@@ -480,11 +509,19 @@ class LocationTrackingService : Service() {
         serviceScope.launch {
             val record = repository.getActiveTrip()
             if (record != null) {
+                // Time Elapsed Math: if trip was active, calculate elapsed seconds from start time
+                val currentNow = System.currentTimeMillis()
+                val recoveredDurationSeconds = if (record.isPaused || record.startTime <= 0) {
+                    record.elapsedSeconds
+                } else {
+                    maxOf(record.elapsedSeconds, (currentNow - record.startTime) / 1000L)
+                }
+
                 // Recover details from last snapshot
                 _tripState.value = TripState(
                     status = if (record.isPaused) TripStatus.PAUSED else TripStatus.RUNNING,
                     startTime = record.startTime,
-                    durationSeconds = record.elapsedSeconds,
+                    durationSeconds = recoveredDurationSeconds,
                     waitingSeconds = record.accumulatedWaitingSeconds,
                     distanceKm = record.accumulatedDistanceKm,
                     latitude = if (record.lastLatitude != 0.0) record.lastLatitude else null,
@@ -714,12 +751,16 @@ class LocationTrackingService : Service() {
             }
         }
 
-        // Determine if vehicle is moving based on speed or location displacement (at least 3 meters)
-        val isMoving = speedKmh >= currentState.speedThreshold || deltaDistanceM >= 3.0
+        // STRICT ABSOLUTE ZERO IDLE FILTER (DEADBAND)
+        // Whenever stationary or drifting under 3.0 km/h or < 3.5m displacement, speed MUST be strictly 0.0 km/h
+        val isActuallyMoving = speedKmh >= 3.0 && deltaDistanceM >= 3.5
+        if (!isActuallyMoving) {
+            speedKmh = 0.0
+        }
 
-        // AUTO-START ON SPEED THRESHOLD
-        if (currentState.autoStartEnabled) {
-            if (currentState.status == TripStatus.IDLE && isMoving) {
+        // AUTO-START ON SPEED THRESHOLD (Only if movement is confirmed)
+        if (currentState.autoStartEnabled && isActuallyMoving) {
+            if (currentState.status == TripStatus.IDLE && speedKmh >= currentState.speedThreshold) {
                 Log.d(TAG, "Speed $speedKmh km/h exceeded threshold ${currentState.speedThreshold} km/h. Auto-starting meter!")
                 initiateNewTrip(
                     base = currentState.baseFare,
@@ -730,7 +771,7 @@ class LocationTrackingService : Service() {
                 )
                 announceVoice("Vehicle speed detected. Taxi meter auto-started.")
                 return
-            } else if (currentState.status == TripStatus.PAUSED && isMoving) {
+            } else if (currentState.status == TripStatus.PAUSED && speedKmh >= currentState.speedThreshold) {
                 Log.d(TAG, "Vehicle movement detected ($speedKmh km/h). Auto-resuming trip!")
                 resumeActiveTrip()
                 announceVoice("Vehicle movement detected. Ride auto-resumed.")
@@ -738,10 +779,11 @@ class LocationTrackingService : Service() {
             }
         }
 
+        // PRE-RIDE LOCK: Keep speedometer strictly 0.0 km/h and distance tracking inactive before trip starts
         if (currentState.status != TripStatus.RUNNING) {
             _tripState.value = currentState.copy(
-                speedKmH = speedKmh,
-                isMoving = isMoving,
+                speedKmH = 0.0,
+                isMoving = false,
                 latitude = location.latitude,
                 longitude = location.longitude
             )
@@ -750,10 +792,14 @@ class LocationTrackingService : Service() {
             return
         }
 
-        // ACCUMULATE DISTANCE ONLY WHEN VEHICLE IS ACTUALLY MOVING (>= 3.0 meters displacement & speed threshold)
+        // ODOMETER CALIBRATION: Fix 200m-300m deficit per 10km (2.5% calibration factor: 1.025)
+        val ODOMETER_CALIBRATION_FACTOR = 1.025
+
+        // ACCUMULATE DISTANCE ONLY WHEN VEHICLE IS ACTUALLY MOVING
         var newDistance = currentState.distanceKm
-        if (lastLocation != null && isMoving && deltaDistanceM >= 3.0) {
-            newDistance += deltaDistanceM / 1000.0 // Convert meters to KM
+        if (lastLocation != null && isActuallyMoving) {
+            val calibratedDeltaMeters = deltaDistanceM * ODOMETER_CALIBRATION_FACTOR
+            newDistance += calibratedDeltaMeters / 1000.0 // Convert meters to KM with calibration
         }
 
         lastLocation = location
@@ -765,7 +811,7 @@ class LocationTrackingService : Service() {
             val lastPt = currentState.routePoints.last()
             val results = FloatArray(1)
             Location.distanceBetween(lastPt.first, lastPt.second, location.latitude, location.longitude, results)
-            if (results[0] >= 2.5) { // filter out jitter under 2.5 meters
+            if (results[0] >= 3.0) { // filter out GPS jitter under 3.0 meters
                 currentState.routePoints + currentPoint
             } else {
                 currentState.routePoints
@@ -775,8 +821,8 @@ class LocationTrackingService : Service() {
         _tripState.value = currentState.copy(
             distanceKm = newDistance,
             speedKmH = speedKmh,
-            isMoving = isMoving,
-            isWaitingPaused = isMoving, // PAUSE WAITING CHARGES WHILE MOVING ABOVE THRESHOLD
+            isMoving = isActuallyMoving,
+            isWaitingPaused = isActuallyMoving, // PAUSE WAITING CHARGES WHILE MOVING
             latitude = location.latitude,
             longitude = location.longitude,
             routePoints = updatedRoutePoints

@@ -102,20 +102,20 @@ class PendingTripsViewModel(application: Application) : AndroidViewModel(applica
 
     fun registerOrUpdateDriver(profile: DriverProfile) {
         val phone = profile.phoneNumber.trim().ifBlank {
-            if (profile.driverId.isNotBlank()) "ID-${profile.driverId}" else ""
+            if (profile.driverId.isNotBlank() && profile.driverId != "0") "DEV-${profile.driverId}" else "Device-Authorized"
         }
-        val name = profile.driverName.ifBlank {
-            if (profile.driverId.isNotBlank()) "Driver ${profile.driverId}" else "Registered Driver"
+        val name = profile.driverName.trim().ifBlank {
+            if (profile.driverId.isNotBlank() && profile.driverId != "0") "Driver ${profile.driverId}" else "Registered Driver"
         }
-        if (phone.isBlank()) return
+        val driverId = profile.driverId.trim().ifBlank { "DRV-001" }
 
         viewModelScope.launch {
             val entity = DriverRemoteEntity(
-                driverId = profile.driverId,
+                driverId = driverId,
                 driverName = name,
                 driverPhone = phone,
-                vehicleNumber = profile.vehiclePlate.ifBlank { profile.vehicleModel },
-                vehicleType = profile.vehicleType,
+                vehicleNumber = profile.vehiclePlate.ifBlank { profile.vehicleModel.ifBlank { "TN-38-BZ-4411" } },
+                vehicleType = profile.vehicleType.ifBlank { "Sedan" },
                 isActive = profile.isActive,
                 status = if (profile.isOnline) "AVAILABLE" else "OFFLINE"
             )
@@ -259,11 +259,13 @@ class PendingTripsViewModel(application: Application) : AndroidViewModel(applica
         tripId: Long,
         finalFare: Double,
         commissionRate: Double = 0.10, // 10% dispatcher commission
+        waitTimeMinutes: Double = 0.0,
+        totalDistanceKm: Double = 0.0,
         onSuccess: () -> Unit = {}
     ) {
         viewModelScope.launch {
             val commAmount = finalFare * commissionRate
-            repository.completeTrip(tripId, finalFare, commAmount)
+            repository.completeTrip(tripId, finalFare, commAmount, waitTimeMinutes, totalDistanceKm)
                 .onSuccess {
                     refreshAdminTrips()
                     onSuccess()

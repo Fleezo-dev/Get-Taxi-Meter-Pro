@@ -474,7 +474,7 @@ private fun DriverPendingTripCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // Header Row: Customer Phone & Status
+            // Header Row: Customer Identity & Status (Raw Phone Hidden for Privacy)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -485,13 +485,13 @@ private fun DriverPendingTripCard(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Phone,
+                        imageVector = Icons.Default.PersonPinCircle,
                         contentDescription = null,
                         tint = brandColor,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                     Text(
-                        text = trip.customerPhone,
+                        text = if (!trip.customerName.isNullOrBlank()) trip.customerName else "CUSTOMER TRIP #${trip.id ?: "LIVE"}",
                         fontWeight = FontWeight.Black,
                         fontSize = 15.sp,
                         color = Color.White
@@ -510,14 +510,6 @@ private fun DriverPendingTripCard(
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                     )
                 }
-            }
-
-            if (!trip.customerName.isNullOrBlank()) {
-                Text(
-                    text = "Customer: ${trip.customerName}",
-                    fontSize = 12.sp,
-                    color = Color(0xFFCBD5E1)
-                )
             }
 
             // Pickup & Drop
