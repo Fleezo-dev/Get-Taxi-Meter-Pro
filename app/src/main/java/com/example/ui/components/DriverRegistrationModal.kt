@@ -290,14 +290,35 @@ fun DriverRegistrationModal(
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
-                // Top Action Bar: Master Admin Login Shortcut
+                // Top Action Bar: Master Admin Login Shortcut & Skip to Meter
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(start = 20.dp, end = 20.dp, top = 12.dp),
-                    horizontalArrangement = Arrangement.End,
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    TextButton(
+                        onClick = {
+                            onRegister(
+                                if (name.isNotBlank()) name else "Driver 001",
+                                if (phone.isNotBlank()) phone else "9876543210",
+                                if (vehiclePlate.isNotBlank()) vehiclePlate else "TN99AF5313",
+                                selectedType,
+                                selectedModel,
+                                photoUriStr,
+                                false
+                            )
+                        }
+                    ) {
+                        Text(
+                            text = "Skip to Taxi Meter ➔",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF64748B)
+                        )
+                    }
+
                     Surface(
                         onClick = { showMasterAdminDialog = true },
                         color = Color(0xFFFEF2F2),
